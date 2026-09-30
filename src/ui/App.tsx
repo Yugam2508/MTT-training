@@ -1,0 +1,81 @@
+import { useEffect, useState } from 'react';
+import { NavContext, type Route } from './nav';
+import { useData } from './store';
+import { HomePage } from './pages/Home';
+import { PlayPage } from './pages/Play';
+import { TrainPage } from './pages/Train';
+import { LearnPage } from './pages/Learn';
+import { StrategyPage } from './pages/Strategy';
+import { AnalyzePage } from './pages/Analyze';
+import { ToolsPage } from './pages/Tools';
+import { SettingsPage } from './pages/Settings';
+
+const TABS: { page: Route['page']; label: string }[] = [
+  { page: 'home', label: 'Home' }, { page: 'play', label: 'Play' }, { page: 'train', label: 'Train' }, { page: 'learn', label: 'Learn' },
+  { page: 'strategy', label: 'Strategy' }, { page: 'analyze', label: 'Analyze' }, { page: 'tools', label: 'Tools' }, { page: 'settings', label: 'Settings' },
+];
+
+function routeFromHash(): Route {
+  try {
+    const h = window.location.hash.replace(/^#/, '');
+    const [page, a] = h.split('.');
+    if (!page) return { page: 'home' };
+    if (page === 'train') return { page, drill: a as never };
+    if (page === 'learn') return { page, lesson: a as never };
+    if (page === 'strategy' || page === 'tools' || page === 'analyze') return { page, tab: a } as Route;
+    if (TABS.some((t) => t.page === page)) return { page } as Route;
+  } catch { /* ignore */ }
+  return { page: 'home' };
+}
+
+function hashOf(r: Route): string {
+  const extra = 'drill' in r ? r.drill : 'lesson' in r ? r.lesson : 'tab' in r ? r.tab : undefined;
+  return r.page === 'home' ? '' : `#${r.page}${extra ? '.' + extra : ''}`;
+}
+
+export function App() {
+  const [route, setRoute] = useState<Route>(routeFromHash);
+  const { settings } = useData();
+  const nav = (r: Route) => {
+    setRoute(r);
+    try { history.pushState(null, '', hashOf(r) || window.location.pathname + window.location.search); } catch { /* sandboxed */ }
+    window.scrollTo({ top: 0 });
+  };
+  useEffect(() => {
+    const onHash = () => setRoute(routeFromHash());
+    window.addEventListener('hashchange', onHash);
+    window.addEventListener('popstate', onHash);
+    return () => { window.removeEventListener('hashchange', onHash); window.removeEventListener('popstate', onHash); };
+  }, []);
+  useEffect(() => {
+    const root = document.documentElement;
+    if (settings.theme === 'system') root.removeAttribute('data-theme');
+    else root.setAttribute('data-theme', settings.theme);
+  }, [settings.theme]);
+  let page;
+  switch (route.page) {
+    case 'play': page = <PlayPage preset={route.preset} />; break;
+    case 'train': page = <TrainPage drill={route.drill} />; break;
+    case 'learn': page = <LearnPage lesson={route.lesson} />; break;
+    case 'strategy': page = <StrategyPage tab={route.tab} />; break;
+    case 'analyze': page = <AnalyzePage tab={route.tab} hand={route.hand} move={route.move} />; break;
+    case 'tools': page = <ToolsPage tab={route.tab} />; break;
+    case 'settings': page = <SettingsPage />; break;
+    default: page = <HomePage />;
+  }
+  return (
+    <NavContext.Provider value={nav}>
+      <header className="topbar">
+        <div className="topbar-inner">
+          <button className="brand" onClick={() => nav({ page: 'home' })} aria-label="MTT Coach home">
+            <span className="brand-mark" aria-hidden="true">♠</span>MTT Coach
+          </button>
+          <nav className="nav" aria-label="Main">
+            {TABS.map((t) => <button key={t.page} className={route.page === t.page ? 'active' : ''} onClick={() => nav({ page: t.page } as Route)}>{t.label}</button>)}
+          </nav>
+        </div>
+      </header>
+      <main>{page}</main>
+    </NavContext.Provider>
+  );
+}

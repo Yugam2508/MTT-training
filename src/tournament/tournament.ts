@@ -86,6 +86,32 @@ export interface TournamentResult {
 
 export const HERO_ID = 'hero';
 
+export interface TournamentSnapshot {
+  v: 1;
+  id: string;
+  cfg: TournamentConfig;
+  players: TPlayer[];
+  tables: TTable[];
+  levelIndex: number;
+  roundsAtLevel: number;
+  handNo: number;
+  heroHands: number;
+  rng: number;
+  current: HandState | null;
+  currentTableId: number | null;
+  currentSeatIds: string[];
+  events: TEvent[];
+  hud: [string, StatCounts][];
+  bf: [string, number][];
+  finished: boolean;
+  heroOut: boolean;
+  bubbleBurst: boolean;
+  stageReached: Stage;
+  roundStartStacks: [string, number][];
+  finalTableAnnounced: boolean;
+  stackTrail: number[];
+}
+
 export class Tournament {
   readonly id: string;
   readonly cfg: TournamentConfig;
@@ -109,6 +135,8 @@ export class Tournament {
   heroOut = false;
   bubbleBurst = false;
   stageReached: Stage = 'early';
+  /** Hero stack in big blinds at the start of each hand. */
+  stackTrail: number[] = [];
   private roundStartStacks = new Map<string, number>();
   private finalTableAnnounced = false;
 
@@ -307,7 +335,8 @@ export class Tournament {
     this.currentTable = t;
     this.currentSeatIds = built.seatIds;
     this.heroHands++;
-    this.runBots();
+    this.stackTrail.push(this.hero().stack / this.level().bb);
+    if (this.stackTrail.length > 2000) this.stackTrail.shift();
     return this.current;
   }
 
@@ -517,6 +546,67 @@ export class Tournament {
     if (heroTableBefore !== undefined && heroTableAfter !== heroTableBefore && !this.heroOut) {
       this.pushEvent('move', `You have been moved to table ${heroTableAfter}.`);
     }
+  }
+
+  // ---------- save / resume ----------
+
+  serialize(): TournamentSnapshot {
+    return {
+      v: 1,
+      id: this.id,
+      cfg: this.cfg,
+      players: [...this.players.values()],
+      tables: this.tables,
+      levelIndex: this.levelIndex,
+      roundsAtLevel: this.roundsAtLevel,
+      handNo: this.handNo,
+      heroHands: this.heroHands,
+      rng: this.rng.state(),
+      current: this.current,
+      currentTableId: this.currentTable?.id ?? null,
+      currentSeatIds: this.currentSeatIds,
+      events: this.events.slice(-60),
+      hud: [...this.hud.entries()],
+      bf: [...this.bf.entries()],
+      finished: this.finished,
+      heroOut: this.heroOut,
+      bubbleBurst: this.bubbleBurst,
+      stageReached: this.stageReached,
+      roundStartStacks: [...this.roundStartStacks.entries()],
+      finalTableAnnounced: this.finalTableAnnounced,
+      stackTrail: this.stackTrail,
+    };
+  }
+
+  static restore(snap: TournamentSnapshot): Tournament {
+    const t = Object.create(Tournament.prototype) as Tournament;
+    const w = t as unknown as Record<string, unknown>;
+    w.id = snap.id;
+    w.cfg = snap.cfg;
+    w.prizes = payoutStructure(snap.cfg.entrants, snap.cfg.buyIn);
+    w.paid = paidPlaces(snap.cfg.entrants);
+    t.players = new Map(snap.players.map((p) => [p.id, p]));
+    t.tables = snap.tables;
+    t.levelIndex = snap.levelIndex;
+    t.roundsAtLevel = snap.roundsAtLevel;
+    t.handNo = snap.handNo;
+    t.heroHands = snap.heroHands;
+    t.rng = makeRng(snap.rng);
+    t.current = snap.current;
+    t.currentTable = snap.currentTableId !== null ? t.tables.find((x) => x.id === snap.currentTableId) ?? null : null;
+    t.currentSeatIds = snap.currentSeatIds;
+    t.events = snap.events;
+    t.history = [];
+    t.hud = new Map(snap.hud);
+    t.bf = new Map(snap.bf);
+    t.finished = snap.finished;
+    t.heroOut = snap.heroOut;
+    t.bubbleBurst = snap.bubbleBurst;
+    t.stageReached = snap.stageReached;
+    w.roundStartStacks = new Map(snap.roundStartStacks);
+    w.finalTableAnnounced = snap.finalTableAnnounced;
+    t.stackTrail = snap.stackTrail ?? [];
+    return t;
   }
 
   result(): TournamentResult {

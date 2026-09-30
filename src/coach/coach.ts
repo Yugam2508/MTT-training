@@ -628,6 +628,10 @@ export function gradeAction(adv: Advice, cat: ActionCat, s: HandState, action: P
       if (toBB > maxOk) tags.push('open-size');
     }
     if (cat === 'allin' && key === 'raise' && classifyPreflop(s, s.toAct).effBB > 30) tags.push('overshove');
+    if (tags.includes('overshove') && f < 0.5) {
+      const alt = (Object.entries(adv.freq) as [ActionCat, number][]).filter(([c, w]) => c !== 'fold' && w > 0.3).map(([c]) => catLabel(c));
+      return verdict('mistake', null, `Shoving ${classifyPreflop(s, s.toAct).effBB.toFixed(0)}bb risks your whole stack to win a small pot. ${alt.length ? `${adv.handClass} is a ${alt.join(' / ')} here.` : `${adv.handClass} is a fold here.`}`);
+    }
     if (f >= 0.5) return verdict(tags.length ? 'good' : 'best', null, tags.includes('open-size') ? 'Right decision, but your raise size is too big: with antes, 2–2.5bb is enough.' : tags.includes('overshove') ? 'Playing the hand is right, but shoving this deep risks too much to win too little. Raise instead.' : `Matches the baseline (${bestText}).`);
     if (f >= 0.2) return verdict('good', null, `Reasonable: the baseline mixes this hand (${bestText} preferred).`);
     if (f > 0.02) return verdict('inaccuracy', null, `Low-frequency play; the baseline prefers ${bestText}.`);
