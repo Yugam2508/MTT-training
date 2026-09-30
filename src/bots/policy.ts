@@ -182,7 +182,7 @@ export function preflopPlan(s: HandState, i: number, prof: Profile, ctx: BotCtx)
     const risk = L.callAmount;
     const myMax = me.total + risk;
     let winnable = 0;
-    for (const p of s.players) winnable += Math.min(p.total, myMax) + p.ante;
+    for (const p of s.players) winnable += (p === me ? myMax : Math.min(p.total, myMax)) + p.ante;
     const req = requiredEquity(risk, Math.max(1, winnable - risk), bfR) + 0.015 * spot.behind;
     for (let h = 0; h < NUM_CLASSES; h++) {
       const eq = eqVsRange(h, range);

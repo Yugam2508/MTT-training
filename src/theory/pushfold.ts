@@ -86,7 +86,11 @@ export function chipOutcomes(spot: PFSpot, bf?: number[]): PFOutcomeValues {
   return { fold, steal, win, lose };
 }
 
-export function solvePushFold(values: PFOutcomeValues, iterations = 60, initPushPct = 0.3): PFResult {
+/**
+ * @param priors optional prior range per caller (e.g. an opener can only hold their opening
+ * range). The caller's best response is per hand; the prior weights what the pusher faces.
+ */
+export function solvePushFold(values: PFOutcomeValues, iterations = 60, initPushPct = 0.3, priors?: (Range | null)[]): PFResult {
   const k = values.win.length;
   const m = preflopMatrix();
   // initial ranges
@@ -134,14 +138,15 @@ export function solvePushFold(values: PFOutcomeValues, iterations = 60, initPush
         // one pass: fraction of combos in the call range and equity against it
         const base = h * NUM_CLASSES;
         const cr = calls[i];
+        const pr = priors?.[i];
         let num = 0, inR = 0, all = 0;
         for (let v = 0; v < NUM_CLASSES; v++) {
-          const c = NONCONFLICT[base + v];
+          const c = pr ? NONCONFLICT[base + v] * pr[v] : NONCONFLICT[base + v];
           all += c;
           const w = cr[v];
           if (w > 0) { const cw = c * w; inR += cw; num += cw * m[base + v]; }
         }
-        const f = inR / all;
+        const f = all > 0 ? inR / all : 0;
         const pCall = pReach * f;
         if (pCall > 0) {
           const eq = num / inR;
@@ -209,4 +214,9 @@ export function standardChart(o: ChartSpotOpts): PFResult {
     if (chartCache.size > 400) chartCache.delete(chartCache.keys().next().value!);
   }
   return r;
+}
+
+/** Final chip stacks of [pusher, callers...] in each outcome (same shape as PFOutcomeValues). */
+export function outcomeStacks(spot: PFSpot): PFOutcomeValues {
+  return chipOutcomes(spot);
 }
