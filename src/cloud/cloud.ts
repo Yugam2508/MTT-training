@@ -19,8 +19,13 @@ export interface CloudState {
 
 const AUTH_KEY = 'mttcoach.auth.v1';
 const META_KEY = 'mttcoach.sync.v1';
-/** The Supabase Edge Function in production builds; the Vite server's local copy in development. */
-const API: string = import.meta.env.VITE_API_URL || (import.meta.env.DEV ? '/api/main' : 'https://tyjicebieaojrtedjpnx.supabase.co/functions/v1/mtt-api');
+/**
+ * The Supabase Edge Function in production builds; the Vite server's local copy in development.
+ * The function is pinned to the database's region (us-east-1): each request makes several database
+ * round trips, which are slow when the function runs near a far-away user instead.
+ */
+const API: string = import.meta.env.VITE_API_URL || (import.meta.env.DEV ? '/api/main' : 'https://tyjicebieaojrtedjpnx.supabase.co/functions/v1/mtt-api?forceFunctionRegion=us-east-1');
+const apiUrl = (action: string) => `${API}${API.includes('?') ? '&' : '?'}a=${action}`;
 export const CLOUD_BUILD = import.meta.env.VITE_CLOUD !== 'off';
 
 interface Meta { etag: string | null; syncedRev: number; lastSyncedAt: number | null }
@@ -63,7 +68,7 @@ class ApiError extends Error {
 async function api(action: string, init: RequestInit = {}, withAuth = true): Promise<Response> {
   const headers = new Headers(init.headers);
   if (withAuth && auth) headers.set('authorization', `Bearer ${auth.token}`);
-  return fetch(`${API}?a=${action}`, { ...init, headers, cache: 'no-store' });
+  return fetch(apiUrl(action), { ...init, headers, cache: 'no-store' });
 }
 
 async function apiJSON<T>(action: string, init: RequestInit = {}, withAuth = true): Promise<T> {
@@ -225,7 +230,7 @@ export { ApiError };
 export async function initCloud() {
   if (!CLOUD_BUILD) return;
   try {
-    const r = await fetch(`${API}?a=health`, { cache: 'no-store' });
+    const r = await fetch(apiUrl('health'), { cache: 'no-store' });
     const ok = r.ok && (await r.json().catch(() => ({}))).ok === true;
     if (!ok) throw new Error('no api');
   } catch {

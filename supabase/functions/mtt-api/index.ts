@@ -64,8 +64,12 @@ function authSecret(): Promise<string> {
   if (fromEnv) return Promise.resolve(fromEnv);
   secret ??= (async () => {
     const key = 'config/auth-secret';
-    await pgStore.put(key, new TextEncoder().encode(randomBytes(32).toString('hex')), 'text/plain', { mode: 'create' });
-    const o = await pgStore.get(key);
+    let o = await pgStore.get(key);
+    if (!o) {
+      // First run: create it. If a concurrent request wins the race, read back the stored one.
+      await pgStore.put(key, new TextEncoder().encode(randomBytes(32).toString('hex')), 'text/plain', { mode: 'create' });
+      o = await pgStore.get(key);
+    }
     if (!o || o === 'not-modified') throw new Error('Auth secret missing');
     return new TextDecoder().decode(o.body);
   })().catch((e) => {
