@@ -1,6 +1,18 @@
 import { useState } from 'react';
 import { useData, setSettings, resetData, exportData, importData } from '../store';
 import { Seg } from '../components/common';
+import { useCloud } from '../../cloud/cloud';
+import { useNav } from '../nav';
+import { statusText } from './Account';
+
+function AccountLine() {
+  const cloud = useCloud();
+  const nav = useNav();
+  if (!cloud.available) return null;
+  return cloud.user
+    ? <p className="small">Synced to your account <strong>{cloud.user.username}</strong> · {statusText(cloud)} · <button className="btn ghost small" style={{ padding: 0 }} onClick={() => nav({ page: 'account' })}>Manage</button></p>
+    : <p className="small">Not backed up to the cloud. <button className="btn ghost small" style={{ padding: 0 }} onClick={() => nav({ page: 'account' })}>Create an account</button> to keep your progress on every device.</p>;
+}
 
 export function SettingsPage() {
   const { settings, hands, decisions, results } = useData();
@@ -20,7 +32,7 @@ export function SettingsPage() {
   };
   return (
     <div className="page">
-      <div className="page-head"><div><h1>Settings</h1><p>Stored in this browser only.</p></div></div>
+      <div className="page-head"><div><h1>Settings</h1><p>Settings apply to this device.</p></div></div>
       <div className="grid cols-2" style={{ alignItems: 'start' }}>
         <div className="panel stack">
           <h3>Table</h3>
@@ -41,6 +53,7 @@ export function SettingsPage() {
         </div>
         <div className="panel stack">
           <h3>Your data</h3>
+          <AccountLine />
           <p className="small muted">{results.length} tournaments · {hands.length} stored hands · {decisions.length} graded decisions.</p>
           <div className="row">
             <button className="btn" onClick={copy}>Copy export</button>

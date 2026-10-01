@@ -11,7 +11,8 @@ export type Route =
   | { page: 'strategy'; tab?: string }
   | { page: 'analyze'; tab?: string; hand?: string; move?: number }
   | { page: 'tools'; tab?: string }
-  | { page: 'settings' };
+  | { page: 'settings' }
+  | { page: 'account' };
 
 export const NavContext = createContext<(r: Route) => void>(() => {});
 export const useNav = () => useContext(NavContext);
