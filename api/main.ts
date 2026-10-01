@@ -43,6 +43,10 @@ function secret(): string {
 
 export default {
   async fetch(request: Request) {
+    // Without a connected Blob store, report the cloud as unavailable so the app hides accounts.
+    if (!process.env.BLOB_READ_WRITE_TOKEN && !process.env.AUTH_SECRET) {
+      return Response.json({ ok: false, error: 'storage_not_configured' }, { status: 503 });
+    }
     return handle(request, blobStore, secret());
   },
 };
