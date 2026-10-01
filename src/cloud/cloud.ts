@@ -1,5 +1,5 @@
 /**
- * Accounts and background sync with the MTT Coach API (/api/main).
+ * Accounts and background sync with the MTT Coach API (a Supabase Edge Function).
  * Local storage stays the working copy; sync pulls, merges, and pushes with ETag checks.
  */
 import { useSyncExternalStore } from 'react';
@@ -19,7 +19,8 @@ export interface CloudState {
 
 const AUTH_KEY = 'mttcoach.auth.v1';
 const META_KEY = 'mttcoach.sync.v1';
-const API = '/api/main';
+/** The Supabase Edge Function in production builds; the Vite server's local copy in development. */
+const API: string = import.meta.env.VITE_API_URL || (import.meta.env.DEV ? '/api/main' : 'https://tyjicebieaojrtedjpnx.supabase.co/functions/v1/mtt-api');
 export const CLOUD_BUILD = import.meta.env.VITE_CLOUD !== 'off';
 
 interface Meta { etag: string | null; syncedRev: number; lastSyncedAt: number | null }

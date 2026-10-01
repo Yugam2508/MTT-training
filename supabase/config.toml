@@ -1,0 +1,6 @@
+# Supabase CLI settings for the MTT Coach backend (project ref tyjicebieaojrtedjpnx).
+project_id = "mtt-coach"
+
+[functions.mtt-api]
+# The API issues and verifies its own session tokens, so the gateway's JWT check is off.
+verify_jwt = false

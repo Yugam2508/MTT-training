@@ -24,8 +24,9 @@ more often and convert deep runs into wins:
   facing opens, pot odds and outs.
 - **Tools**: range charts, Nash push/fold charts, an equity calculator and an ICM calculator.
 
-Everything runs in the browser. Progress, hand histories and graded decisions are stored in your
-browser's localStorage (export/import from Settings).
+Live at **https://mtt-coach.vercel.app**. The trainer runs in the browser: progress, hand
+histories and graded decisions are kept in localStorage, so it works offline and without an
+account. Create a free account (Account page) to back that data up and sync it across devices.
 
 ## Run it
 
@@ -45,6 +46,36 @@ Other scripts:
 | `npm run gen:equity` | Regenerate the 169×169 preflop equity matrix (~1 min) |
 | `npm run gen:charts` | Regenerate the precomputed Nash push/fold charts (~20 s) |
 
+## Accounts and cloud sync
+
+```
+browser (Vercel, static)  ──HTTPS──▶  Supabase Edge Function `mtt-api`  ──▶  Postgres table `app_storage`
+```
+
+- **API** (`supabase/functions/mtt-api/app.ts`): register, sign in, change password, delete
+  account, and get/put one data blob per account. Passwords are hashed with scrypt; sessions are
+  HMAC-signed tokens that a password change revokes. Writes use ETags, so two devices can't
+  overwrite each other.
+- **Storage** (`supabase/migrations/`): one private table with row-level security on and no
+  policies, so only the function (using the project's secret key) can read or write it.
+- **Client** (`src/cloud/`): localStorage stays the working copy. Sync pulls, merges and pushes in
+  the background (a few seconds after changes, and on sign-in). The merge is order-independent:
+  hands and decisions are unioned by id, and drill and stat counters are kept per device, so
+  practice done offline on two devices adds up instead of being lost.
+
+Local development needs no Supabase: `npm run dev` and `npm run preview` serve the same API at
+`/api/main`, stored in `.data/`. To point a build at a different API, set `VITE_API_URL`.
+
+Deploying the backend with the Supabase CLI:
+
+```bash
+supabase link --project-ref tyjicebieaojrtedjpnx
+supabase db push                              # applies supabase/migrations
+supabase functions deploy mtt-api --no-verify-jwt
+```
+
+The site is a static Vite build (`npm run build` → `dist/`); Vercel builds it from this repo.
+
 ## How it works
 
 See [docs/PLAN.md](docs/PLAN.md) for the design. In short:
@@ -59,6 +90,9 @@ src/analysis    per-hand stat flags, aggregate stats, leak detection
 src/content     lessons, quizzes, playbooks
 src/drills      drill generators
 src/ui          React UI
+src/cloud       accounts, background sync, order-independent merge
+supabase        Edge Function (cloud API) and database migration
+server          local copy of the API for the Vite dev/preview server
 ```
 
 Key choices:
