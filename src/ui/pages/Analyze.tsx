@@ -277,10 +277,10 @@ function Results() {
             {sorted.slice().reverse().map((r) => (
               <tr key={r.id}>
                 <td className="small">{new Date(r.ts).toLocaleDateString()}</td>
-                <td>{r.name}</td>
+                <td>{r.name}{r.seat ? <span className="pill accent" style={{ marginLeft: 6 }}>seat</span> : null}</td>
                 <td className="num">{r.place}/{r.entrants}</td>
-                <td className="num">{fmtMoney(r.prize)}</td>
-                <td className="num" style={{ color: r.prize - r.buyIn > 0 ? 'var(--g-best)' : undefined }}>{fmtMoney(r.prize - r.buyIn)}</td>
+                <td className="num">{fmtMoney(r.prize, r.currency)}</td>
+                <td className="num" style={{ color: r.prize - r.buyIn > 0 ? 'var(--g-best)' : undefined }}>{fmtMoney(r.prize - r.buyIn, r.currency)}</td>
                 <td className="num">{r.handsPlayed}</td>
                 <td className="small">{STAGE_LABEL[r.stageReached]}</td>
               </tr>

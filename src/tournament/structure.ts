@@ -43,6 +43,10 @@ export interface TournamentConfig {
   startingStack: number;
   handsPerLevel: number;
   buyIn: number;
+  /** Money prefix for display, e.g. 'S$'. Defaults to '$'. */
+  currency?: string;
+  /** Satellite: the prizes are equal seats, and play stops once every remaining player has one. */
+  satellite?: { seatValue: number; guaranteedSeats: number; /** The event the seats are for. */ target: string };
   field: FieldMix;
   start: StartPoint;
   heroStack: HeroStackOption;
@@ -55,6 +59,15 @@ export interface Preset {
   blurb: string;
   config: Omit<TournamentConfig, 'seed'>;
 }
+
+/**
+ * The SPC Main Event satellite as advertised (S$60, no fee, 10 seats guaranteed, seat = the S$530+70
+ * Main Event entry). Field size and structure are assumptions: 100 entries is exactly the guarantee.
+ */
+const SPC_SATELLITE: Omit<TournamentConfig, 'seed' | 'start' | 'heroStack'> = {
+  name: 'SPC Main Event Satellite', entrants: 100, tableSize: 9, startingStack: 5000, handsPerLevel: 8,
+  buyIn: 60, currency: 'S$', satellite: { seatValue: 600, guaranteedSeats: 10, target: 'SPC Main Event' }, field: 'soft',
+};
 
 export const PRESETS: Preset[] = [
   {
@@ -87,6 +100,16 @@ export const PRESETS: Preset[] = [
     blurb: 'The last nine of a 180-player field. Big pay jumps, short-handed play and heads-up for the title.',
     config: { name: 'Final Table Trainer', entrants: 180, tableSize: 9, startingStack: 10000, handsPerLevel: 8, buyIn: 55, field: 'mixed', start: 'final', heroStack: 'random' },
   },
+  {
+    key: 'spcsat', label: 'SPC Satellite',
+    blurb: 'Live S$60 satellite to the S$600 Singapore Poker Championships Main Event: 100 players, 10 seats, 50bb stacks, fast levels. Every seat is worth the same, so surviving beats chips.',
+    config: { ...SPC_SATELLITE, start: 'beginning', heroStack: 'average' },
+  },
+  {
+    key: 'spcsatbubble', label: 'SPC Satellite Bubble',
+    blurb: '15 players left for the 10 SPC Main Event seats, about 14bb on average. Learn when to fold your way into a seat and when a short stack has to shove.',
+    config: { ...SPC_SATELLITE, name: 'SPC Satellite Bubble', start: 'bubble', heroStack: 'random' },
+  },
 ];
 
 export type Stage = 'early' | 'middle' | 'bubble' | 'itm' | 'final';
@@ -95,10 +118,12 @@ export const STAGE_LABEL: Record<Stage, string> = {
   early: 'Early', middle: 'Middle', bubble: 'Bubble', itm: 'In the money', final: 'Final table',
 };
 
-export function stageOf(playersLeft: number, paid: number, tables: number, tableSize: number, avgStackBB: number): Stage {
+export function stageOf(playersLeft: number, paid: number, tables: number, tableSize: number, avgStackBB: number, satellite = false): Stage {
   if (tables === 1 && playersLeft <= tableSize) return 'final';
   if (playersLeft <= paid) return 'itm';
-  if (playersLeft <= paid + Math.max(2, Math.ceil(paid * 0.2))) return 'bubble';
+  // with flat seat prizes the pressure starts much earlier (about 15 left for 10 seats)
+  const zone = satellite ? Math.max(3, Math.ceil(paid * 0.5)) : Math.max(2, Math.ceil(paid * 0.2));
+  if (playersLeft <= paid + zone) return 'bubble';
   if (avgStackBB >= 50) return 'early';
   return 'middle';
 }

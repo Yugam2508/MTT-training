@@ -52,7 +52,8 @@ function Setup({ onStart, initial }: { onStart: (t: Tournament) => void; initial
             <p className="small muted">{p.blurb}</p>
             <div className="row small">
               <span className="pill">{p.config.entrants} players</span>
-              <span className="pill">${p.config.buyIn} buy-in</span>
+              <span className="pill">{p.config.currency ?? '$'}{p.config.buyIn} buy-in</span>
+              {p.config.satellite && <span className="pill accent">{p.config.satellite.guaranteedSeats} seats</span>}
               <span className="pill">{p.config.handsPerLevel} hands/level</span>
             </div>
           </button>
@@ -254,7 +255,7 @@ function TableView({ t, onLeave, onNew }: { t: Tournament; onLeave: () => void; 
           <div className="panel stack">
             <div className="clock">
               <Tile label={`Level ${t.levelIndex + 1}`} value={<span className="num">{compact(lvl.sb)}/{compact(lvl.bb)}</span>} sub={`ante ${compact(lvl.ante)} · next in ${t.handsUntilLevel()}`} />
-              <Tile label="Players" value={<span className="num">{t.playersLeft()}/{t.cfg.entrants}</span>} sub={`${t.paid} paid`} />
+              <Tile label="Players" value={<span className="num">{t.playersLeft()}/{t.cfg.entrants}</span>} sub={t.cfg.satellite ? `${t.paid} seats` : `${t.paid} paid`} />
               <Tile label="Your stack" value={<span className="num">{(hero.stack / lvl.bb).toFixed(1)}bb</span>} sub={`rank ${t.heroRank()} · avg ${(t.avgStack() / lvl.bb).toFixed(0)}bb`} />
             </div>
             <PayLadder t={t} />
@@ -295,12 +296,23 @@ function handResultText(t: Tournament): string | undefined {
 function PayLadder({ t }: { t: Tournament }) {
   const left = t.playersLeft();
   const out = left > t.paid ? left - t.paid : 0;
+  const cur = t.cfg.currency;
+  const sat = t.cfg.satellite;
+  if (sat) {
+    const cash = t.prizes[t.paid];
+    return (
+      <div className="small">
+        {out} more elimination{out === 1 ? '' : 's'} and everyone left wins a seat in the {sat.target} ({fmtMoney(sat.seatValue, cur)}).
+        {cash ? ` ${ordinal(t.paid + 1)} gets the leftover ${fmtMoney(cash, cur)}.` : ''} Seats are equal, so chips beyond what you need to survive are worth almost nothing.
+      </div>
+    );
+  }
   const nextPrize = t.prizes[Math.min(left - 2, t.prizes.length - 1)] ?? 0;
   return (
     <div className="small">
       {out > 0
-        ? <span>{out} more elimination{out > 1 ? 's' : ''} to the money. Min-cash {fmtMoney(t.prizes[t.paid - 1])}; 1st {fmtMoney(t.prizes[0])}.</span>
-        : <span>In the money. Next pay jump: {fmtMoney(nextPrize)} ({ordinal(left - 1)}). 1st pays {fmtMoney(t.prizes[0])}.</span>}
+        ? <span>{out} more elimination{out > 1 ? 's' : ''} to the money. Min-cash {fmtMoney(t.prizes[t.paid - 1], cur)}; 1st {fmtMoney(t.prizes[0], cur)}.</span>
+        : <span>In the money. Next pay jump: {fmtMoney(nextPrize, cur)} ({ordinal(left - 1)}). 1st pays {fmtMoney(t.prizes[0], cur)}.</span>}
     </div>
   );
 }
@@ -506,9 +518,10 @@ function OverlayView({ o, t, close, onLeave, onNew, nav, session }: {
     <div className="overlay">
       <div className="panel stack">
         <span className="label">{t.cfg.name}</span>
-        <h2>{t.finished && r.place === 1 ? 'You won the tournament!' : `You finished ${ordinal(r.place)} of ${r.entrants}`}</h2>
+        <h2>{r.seat ? `You won a seat in the ${t.cfg.satellite!.target}!` : !t.cfg.satellite && t.finished && r.place === 1 ? 'You won the tournament!' : `You finished ${ordinal(r.place)} of ${r.entrants}`}</h2>
+        {t.cfg.satellite && <p className="small muted">{r.seat ? `You were one of the last ${t.paid} of ${r.entrants} players.` : `${t.paid} of ${r.entrants} players won seats.`}</p>}
         <div className="tiles">
-          <Tile label="Prize" value={fmtMoney(r.prize)} sub={`${profit >= 0 ? 'profit' : 'loss'} ${fmtMoney(profit)}`} />
+          <Tile label={r.seat ? 'Seat value' : 'Prize'} value={fmtMoney(r.prize, r.currency)} sub={`${profit >= 0 ? 'profit' : 'loss'} ${fmtMoney(profit, r.currency)}`} />
           <Tile label="Hands" value={r.handsPlayed} sub={`reached ${STAGE_LABEL[r.stageReached].toLowerCase()}`} />
           <Tile label="Decisions" value={acc.scored ? `${Math.round(acc.pct)}%` : '–'} sub={`${acc.good}/${acc.scored} good or best`} />
         </div>

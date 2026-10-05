@@ -28,6 +28,19 @@ export function payoutStructure(entrants: number, buyIn: number): number[] {
   return prizes;
 }
 
+/**
+ * Satellite: every seat has the same value. Seats = the guarantee or as many full seats as the
+ * pool buys, whichever is more; money left after the last full seat is paid as cash to the next place.
+ */
+export function satellitePayouts(entrants: number, buyIn: number, seatValue: number, guaranteedSeats: number): number[] {
+  const pool = entrants * buyIn;
+  const seats = Math.max(guaranteedSeats, Math.floor(pool / seatValue + 1e-9));
+  const prizes: number[] = new Array(seats).fill(seatValue);
+  const left = Math.round((pool - seats * seatValue) * 100) / 100;
+  if (left > 0) prizes.push(left);
+  return prizes;
+}
+
 /** Remaining payouts for ICM given how many players are left. */
 export function remainingPayouts(allPrizes: readonly number[], playersLeft: number): number[] {
   const out: number[] = [];

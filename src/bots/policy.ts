@@ -123,7 +123,7 @@ export function preflopPlan(s: HandState, i: number, prof: Profile, ctx: BotCtx)
   let label = '';
   const eff = spot.effBB;
   const anteBB = Math.min(2, spot.anteBB);
-  const bfR = Math.round(clamp(ctx.bf, 1, 3) * 10) / 10;
+  const bfR = Math.round(clamp(ctx.bf, 1, 10) * 10) / 10; // the tournament caps bf (3, or 10 in satellites)
   const commitToAllin = (frac: number) => {
     if (raiseTo >= myTotal * frac || raiseTo >= L.maxRaiseTo) {
       for (let h = 0; h < NUM_CLASSES; h++) { allin[h] = Math.min(1, allin[h] + raise[h]); raise[h] = 0; }

@@ -8,6 +8,8 @@ import { useData } from '../store';
 import { useNav, getActiveTournament } from '../nav';
 import { Tile, fmtMoney, fmtPct } from '../components/common';
 
+const QUICK_START = ['quick27', 'turbo90', 'major180', 'bubble', 'final', 'spcsat'];
+
 export function HomePage() {
   const nav = useNav();
   const data = useData();
@@ -70,7 +72,7 @@ export function HomePage() {
       <section className="stack">
         <div className="spread"><h2>Quick start</h2><button className="btn ghost" onClick={() => nav({ page: 'play' })}>All formats →</button></div>
         <div className="grid cols-3">
-          {PRESETS.slice(0, 6).map((p) => (
+          {QUICK_START.map((key) => PRESETS.find((p) => p.key === key)!).map((p) => (
             <button key={p.key} className="panel preset" onClick={() => nav({ page: 'play', preset: p.key })}>
               <div className="spread"><h3 style={{ margin: 0 }}>{p.label}</h3><span className="pill">{p.config.entrants} players</span></div>
               <p className="small muted">{p.blurb}</p>

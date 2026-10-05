@@ -44,7 +44,7 @@ export function coachContextFor(t: Tournament, seatIds: string[]): CoachContext 
   if (icmOn) {
     const f = t.icmField();
     const pos = new Map(f.ids.map((id, i) => [id, i]));
-    icm = { fieldStacks: f.stacks, payouts: f.payouts, fieldIndex: seatIds.map((id) => pos.get(id)!) };
+    icm = { fieldStacks: f.stacks, payouts: f.payouts, fieldIndex: seatIds.map((id) => pos.get(id)!), bfCap: t.bubbleFactorCap() };
   }
   return {
     profileOf: (i) => {

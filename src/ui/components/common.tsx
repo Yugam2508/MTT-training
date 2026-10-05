@@ -111,6 +111,6 @@ export function Seg<T extends string>({ value, options, onChange, label }: { val
   );
 }
 
-export const fmtMoney = (x: number) => `${x < 0 ? '−' : ''}$${Math.abs(x).toLocaleString(undefined, { minimumFractionDigits: Math.abs(x) < 100 ? 2 : 0, maximumFractionDigits: 2 })}`;
+export const fmtMoney = (x: number, currency = '$') => `${x < 0 ? '−' : ''}${currency}${Math.abs(x).toLocaleString(undefined, { minimumFractionDigits: Math.abs(x) < 100 ? 2 : 0, maximumFractionDigits: 2 })}`;
 export const fmtPct = (x: number, d = 0) => (Number.isFinite(x) ? `${x.toFixed(d)}%` : '–');
 export const fmtBBs = (x: number) => `${x >= 0 ? '+' : '−'}${Math.abs(x).toFixed(1)}bb`;

@@ -5,7 +5,7 @@ import type { Grade } from '../coach/coach';
 import type { Stage } from '../tournament/structure';
 
 export type LessonId =
-  | 'mtt-basics' | 'preflop-opening' | 'vs-opens' | 'stack-depth' | 'pushfold' | 'pot-odds' | 'icm'
+  | 'mtt-basics' | 'preflop-opening' | 'vs-opens' | 'stack-depth' | 'pushfold' | 'pot-odds' | 'icm' | 'satellites'
   | 'postflop-cbet' | 'value-bluff' | 'final-table' | 'exploits' | 'mental';
 export type DrillId = 'pushfold' | 'callshove' | 'icm' | 'rfi' | 'defend' | 'potodds';
 

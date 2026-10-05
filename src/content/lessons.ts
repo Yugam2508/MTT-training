@@ -477,6 +477,60 @@ export const LESSONS: Lesson[] = [
     drills: ['icm'],
   },
   {
+    id: 'satellites',
+    title: 'Satellites: play for the seat',
+    track: 'Short stack & ICM',
+    minutes: 8,
+    summary: 'Why every seat is worth the same, why that makes satellite bubbles the most extreme ICM spots in poker, and how each stack size should play them.',
+    sections: [
+      {
+        heading: 'Every seat is worth the same',
+        body: [
+          'A satellite pays its winners with entries to a bigger event instead of a prize ladder. In the SPC Main Event satellite, ten S$60 entries buy one S$600 Main Event seat, and everyone who gets a seat gets exactly the same prize.',
+          'So **the chip leader and the player who squeaks in with one big blind win the same thing**. There is no reward for finishing first, only for not finishing outside the seats. Money left after the last full seat (when the field is not a multiple of ten) usually goes as cash to the next finisher.',
+        ],
+      },
+      {
+        heading: 'Chips you do not need are worth almost nothing',
+        body: [
+          'In a normal tournament, extra chips are worth less than your first chips. In a satellite they can be worth **nothing**: once your stack is big enough that you will get a seat even if you fold every hand, winning more chips adds no prize, while losing them can cost you the seat.',
+          'That is why bubble factors in satellites can reach 5, 10 or more, where a normal bubble rarely goes above 2 or 3. With a bubble factor of 5, a call that needs 33% equity in chips needs about 71%. Folding pocket kings, or even aces, can be correct when calling could knock you out and folding all but guarantees a seat.',
+          'The satellite bubble also starts much earlier than a normal one. With 10 seats, the pressure is already strong at 15 or 16 players left.',
+        ],
+      },
+      {
+        heading: 'How each stack should play',
+        body: [
+          '- **Big stacks (comfortably safe):** stop playing. Fold almost everything, and do not call all-ins that could cost you your seat. The exception: calling a tiny shove from the big blind when it barely dents your stack, because a bust helps you too.',
+          '- **Medium stacks:** the most dangerous spot. Avoid all-ins against anyone who covers you. Steal the blinds of other medium stacks only when they cannot profitably call.',
+          '- **Short stacks:** you have to accumulate. Shove first in rather than call, and target the big stacks that should be folding. Before you gamble, check whether players at other tables are shorter than you: every one of them who busts first moves you closer to a seat.',
+        ],
+      },
+      {
+        heading: 'Playing a live satellite field',
+        body: [
+          'Many recreational players in a cheap live satellite do not adjust at all: they call shoves with any ace or pair on the bubble, even with a big stack. Against them, short-stack bluff shoves work less often, so shove a little tighter and value-shove more.',
+          'At the same time, nobody will make you fold your way into a seat. If you are safe, let the players who ignore ICM knock each other out.',
+          'Use the **SPC Satellite** and **SPC Satellite Bubble** formats on the Play page to practise this. The coach uses the satellite’s flat payouts when it grades your all-ins and calls.',
+        ],
+      },
+    ],
+    keyPoints: [
+      'All seats are worth the same: 1st and the last seat win the same prize.',
+      'Once you have enough chips to be nearly sure of a seat, extra chips are worth almost nothing: stop playing.',
+      'Satellite bubble factors are huge, so calling ranges collapse; even big pairs can be folds.',
+      'Short stacks must shove first in, ideally into big stacks who should fold, and watch for shorter stacks elsewhere.',
+      'The satellite bubble starts early: with 10 seats, play tightens around 15 players left.',
+    ],
+    quiz: [
+      { q: 'In a 10-seat satellite, what does the chip leader win compared with the 10th-place finisher?', options: ['About 3 times more', 'About 50% more', 'The same seat', 'Nothing extra, but they get a cash bonus'], answer: 2, explain: 'Every seat is the same prize. Finishing first earns nothing extra.' },
+      { q: 'Why are bubble factors so much higher in satellites than in normal tournaments?', options: ['The blinds go up faster', 'Winning chips adds little to a seat you will probably get, while losing can cost the whole seat', 'Players are worse', 'There is no ante'], answer: 1, explain: 'Bubble factor = $ you lose when you lose ÷ $ you gain when you win. With flat prizes, the gain is small and the loss can be the whole seat.' },
+      { q: 'You have enough chips to be almost certain of a seat. 13 players are left for 10 seats. What is usually best?', options: ['Keep raising to build a bigger lead', 'Fold almost every hand and let others bust', 'Call any all-in with a pair', 'Shove every button'], answer: 1, explain: 'Extra chips win nothing. Folding keeps your seat while the short stacks bust.' },
+      { q: 'Satellite bubble: you are the big stack in the big blind and cover everyone easily. A 2bb stack shoves; it costs you 1bb more to call with 9-4 offsuit. Call or fold?', options: ['Fold: never call on a satellite bubble', 'Call: it costs very little of your stack and can bust a player', 'Raise all-in', 'It depends only on your cards'], answer: 1, explain: 'You risk almost nothing that matters to your seat, and a bust brings everyone, including you, closer to the seats. The pot odds make the call easy.' },
+    ],
+    drills: ['icm'],
+  },
+  {
     id: 'postflop-cbet',
     title: 'C-betting and board texture',
     track: 'Postflop',

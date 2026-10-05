@@ -7,7 +7,8 @@ more often and convert deep runs into wins:
   with a big-blind ante, table breaks and balancing, a hand-for-hand bubble, pay jumps and a final
   table. Opponents are seven distinct player types (winning reg, TAG, LAG, nit, calling station,
   recreational, maniac) mixed by stake level. Scenario starts drop you straight into the middle
-  stages, the bubble or the final table.
+  stages, the bubble or the final table. Satellite formats (the SPC Main Event satellite: S$60,
+  10 seats of S$600) pay equal seats and stop once every remaining player has one.
 - **Get coached** on every decision. Preflop all-ins (open-shoves, re-shoves, calling shoves) are
   solved with the real stacks in chip EV or, near the money, full-field ICM $EV. Other preflop
   spots are compared to baseline charts. Postflop calls and folds are checked against pot odds and
@@ -17,7 +18,7 @@ more often and convert deep runs into wins:
   fold to 3-bet, BB defence, c-bet, WTSD…), opening frequency by position, accuracy by stage and
   spot type, a ranked list of leaks with examples, every mistake with its cost, and a step-by-step
   hand replayer.
-- **Learn** the theory: 12 lessons (ICM, push/fold, stack depth, pot odds, c-betting, value and
+- **Learn** the theory: 13 lessons (ICM, satellites, push/fold, stack depth, pot odds, c-betting, value and
   bluffing, final tables, exploits, bankroll) with quizzes, stage-by-stage strategy playbooks and
   a guide to beating each player type.
 - **Train** with six drills: push or fold, call vs shove, ICM bubble calls, opening ranges,

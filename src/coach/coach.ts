@@ -41,7 +41,8 @@ export const GRADE_LABEL: Record<Grade, string> = {
 export interface CoachContext {
   profileOf(i: number): Profile | null;
   botCtxOf(i: number): BotCtx;
-  icm: { fieldStacks: number[]; payouts: number[]; fieldIndex: number[] } | null;
+  /** `bfCap`: the largest bubble factor to use (default 3; satellites go higher). */
+  icm: { fieldStacks: number[]; payouts: number[]; fieldIndex: number[]; bfCap?: number } | null;
   stage: Stage;
   playersLeft: number;
   paid: number;
@@ -552,7 +553,8 @@ function heroBubbleFactor(s: HandState, heroIdx: number, ctx: CoachContext): num
   const lose = base.slice(); lose[hi] -= risk; lose[oi] += risk;
   const [b, w, l] = icmBatch([base, win, lose], payouts, 4000, 9).map((e) => e[hi]);
   const gain = w - b, loss = b - l;
-  return gain > 1e-9 ? Math.max(1, Math.min(3, loss / gain)) : 1;
+  const cap = ctx.icm.bfCap ?? 3;
+  return gain > 1e-9 ? Math.max(1, Math.min(cap, loss / gain)) : loss > 1e-9 ? cap : 1;
 }
 
 // ---------------------------------------------------------------------------

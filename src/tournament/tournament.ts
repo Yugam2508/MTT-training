@@ -9,7 +9,7 @@ import { makeRng, shuffleInPlace, type Rng } from '../engine/rng';
 import { PROFILES, FIELD_MIXES, type ProfileKey } from '../bots/profiles';
 import { chooseBotAction } from '../bots/bot';
 import { icmBatch } from '../theory/icm';
-import { payoutStructure, paidPlaces } from '../theory/payouts';
+import { payoutStructure, paidPlaces, satellitePayouts } from '../theory/payouts';
 import { positionOf } from '../theory/spot';
 import { POS_LABEL } from '../theory/positions';
 import { computeFlags, accumulate, emptyCounts, type HandFlags, type StatCounts } from '../analysis/handFlags';
@@ -82,9 +82,23 @@ export interface TournamentResult {
   stageReached: Stage;
   start: TournamentConfig['start'];
   field: TournamentConfig['field'];
+  currency?: string;
+  /** Satellite result: true when the hero won a seat. */
+  seat?: boolean;
 }
 
 export const HERO_ID = 'hero';
+
+function prizesFor(cfg: TournamentConfig): number[] {
+  const sat = cfg.satellite;
+  return sat ? satellitePayouts(cfg.entrants, cfg.buyIn, sat.seatValue, sat.guaranteedSeats) : payoutStructure(cfg.entrants, cfg.buyIn);
+}
+
+/** Places paid. In a satellite this is the number of seats; a leftover cash prize is not counted. */
+function paidFor(cfg: TournamentConfig, prizes: number[]): number {
+  const sat = cfg.satellite;
+  return sat ? prizes.filter((x) => x === sat.seatValue).length : paidPlaces(cfg.entrants);
+}
 
 export interface TournamentSnapshot {
   v: 1;
@@ -144,8 +158,8 @@ export class Tournament {
     this.cfg = cfg;
     this.id = `t${Date.now().toString(36)}${cfg.seed.toString(36).slice(0, 4)}`;
     this.rng = makeRng(cfg.seed);
-    this.prizes = payoutStructure(cfg.entrants, cfg.buyIn);
-    this.paid = paidPlaces(cfg.entrants);
+    this.prizes = prizesFor(cfg);
+    this.paid = paidFor(cfg, this.prizes);
     this.setupField(heroName);
     this.computeBubbleFactors();
   }
@@ -175,7 +189,11 @@ export class Tournament {
     let remaining = entrants;
     let targetBB = 0;
     if (this.cfg.start === 'middle') { remaining = Math.max(this.paid + 10, Math.round(entrants * 0.45)); targetBB = 35; }
-    if (this.cfg.start === 'bubble') { remaining = this.paid + Math.max(2, Math.round(this.paid * 0.12)); targetBB = 24; }
+    if (this.cfg.start === 'bubble') {
+      // satellite bubbles are longer and shallower: everyone left is playing for the same seat
+      if (this.cfg.satellite) { remaining = this.paid + Math.max(3, Math.round(this.paid * 0.5)); targetBB = 14; }
+      else { remaining = this.paid + Math.max(2, Math.round(this.paid * 0.12)); targetBB = 24; }
+    }
     if (this.cfg.start === 'final') { remaining = Math.min(tableSize, entrants); targetBB = 22; }
     if (remaining < entrants) {
       const others = shuffleInPlace(ids.slice(1), this.rng);
@@ -215,7 +233,9 @@ export class Tournament {
       p.seat = seat;
     });
     this.stageReached = this.stage();
-    this.pushEvent('info', `${this.cfg.name}: ${entrants} entrants, ${this.paid} places paid. Blinds ${this.fmtLevel(this.level())}.`);
+    const sat = this.cfg.satellite;
+    const paidText = sat ? `${this.paid} seats worth ${this.money(sat.seatValue, 0)} each` : `${this.paid} places paid`;
+    this.pushEvent('info', `${this.cfg.name}: ${entrants} entrants, ${paidText}. Blinds ${this.fmtLevel(this.level())}.`);
   }
 
   private gauss() {
@@ -226,6 +246,7 @@ export class Tournament {
   // ---------- queries ----------
 
   level(): Level { return blindLevel(this.levelIndex); }
+  money(x: number, digits = 2) { return `${this.cfg.currency ?? '$'}${x.toFixed(digits)}`; }
   fmtLevel(l: Level) { return `${l.sb.toLocaleString()}/${l.bb.toLocaleString()} ante ${l.ante.toLocaleString()}`; }
   alive(): TPlayer[] { return [...this.players.values()].filter((p) => !p.busted); }
   playersLeft() { return this.alive().length; }
@@ -233,7 +254,7 @@ export class Tournament {
   heroTable(): TTable | undefined { return this.tables.find((t) => t.seats.includes(HERO_ID)); }
   avgStack() { const a = this.alive(); return a.reduce((s, p) => s + p.stack, 0) / Math.max(1, a.length); }
   stage(): Stage {
-    return stageOf(this.playersLeft(), this.paid, this.tables.length, this.cfg.tableSize, this.avgStack() / this.level().bb);
+    return stageOf(this.playersLeft(), this.paid, this.tables.length, this.cfg.tableSize, this.avgStack() / this.level().bb, !!this.cfg.satellite);
   }
   heroRank(): number {
     const h = this.hero();
@@ -262,6 +283,9 @@ export class Tournament {
 
   // ---------- bubble factors for ICM-aware bots ----------
 
+  /** Satellite bubbles are far steeper than pay-jump bubbles: a locked-up stack risks a whole seat for nothing. */
+  bubbleFactorCap(): number { return this.cfg.satellite ? 10 : 3; }
+
   private computeBubbleFactors() {
     this.bf.clear();
     if (!this.icmRelevant()) return;
@@ -286,7 +310,8 @@ export class Tournament {
     for (let i = 0; i < n; i++) {
       const gain = vals[1 + 2 * i][i] - vals[0][i];
       const loss = vals[0][i] - vals[2 + 2 * i][i];
-      const bf = gain > 1e-9 ? Math.max(1, Math.min(3, loss / gain)) : 1;
+      const cap = this.bubbleFactorCap();
+      const bf = gain > 1e-9 ? Math.max(1, Math.min(cap, loss / gain)) : loss > 1e-9 ? cap : 1;
       this.bf.set(ids[i], bf);
     }
   }
@@ -453,6 +478,7 @@ export class Tournament {
     const before = this.playersLeft();
     busted.sort((a, b) => (this.roundStartStacks.get(b.id) ?? 0) - (this.roundStartStacks.get(a.id) ?? 0));
     const wasOutOfMoney = before > this.paid;
+    const sat = this.cfg.satellite;
     busted.forEach((p, k) => {
       p.busted = true;
       p.place = before - busted.length + 1 + k;
@@ -461,23 +487,42 @@ export class Tournament {
       if (t) t.seats[p.seat] = null;
       if (p.isHero) {
         this.heroOut = true;
-        this.pushEvent('bust', `You finished ${ordinal(p.place)} of ${this.cfg.entrants}${p.prize > 0 ? ` for $${p.prize.toFixed(2)}` : ''}.`);
+        const prize = p.prize <= 0 ? '' : sat && p.prize === sat.seatValue ? `, which still wins a seat in the ${sat.target}` : ` for ${this.money(p.prize)}`;
+        this.pushEvent('bust', `You finished ${ordinal(p.place)} of ${this.cfg.entrants}${prize}.`);
       }
     });
     const left = this.playersLeft();
+    if (sat && left <= this.paid) {
+      this.finishSatellite();
+      return;
+    }
     if (wasOutOfMoney && left <= this.paid && !this.bubbleBurst) {
       this.bubbleBurst = true;
       this.pushEvent('itm', `The bubble has burst. ${left} players are in the money.`);
     } else if (!this.bubbleBurst && left === this.paid + 1) {
-      this.pushEvent('bubble', `Bubble: one more elimination and everyone left is paid.`);
+      this.pushEvent('bubble', sat ? 'Seat bubble: one more elimination and everyone left wins a seat.' : 'Bubble: one more elimination and everyone left is paid.');
     }
     if (left === 1) {
       const w = this.alive()[0];
       w.place = 1;
       w.prize = this.prizes[0];
       this.finished = true;
-      this.pushEvent('win', w.isHero ? `You won the tournament! $${w.prize.toFixed(2)}` : `${w.name} wins the tournament.`);
+      this.pushEvent('win', w.isHero ? `You won the tournament! ${this.money(w.prize)}` : `${w.name} wins the tournament.`);
     }
+  }
+
+  /** Everyone still in has a seat, so the satellite stops. Places among seat winners follow stack size. */
+  private finishSatellite() {
+    const sat = this.cfg.satellite!;
+    const alive = this.alive().sort((a, b) => b.stack - a.stack);
+    alive.forEach((p, k) => { p.place = k + 1; p.prize = this.prizes[k] ?? 0; });
+    this.finished = true;
+    this.bubbleBurst = true;
+    this.stageReached = 'itm';
+    const heroIn = alive.some((p) => p.isHero);
+    this.pushEvent('win', heroIn
+      ? `You won a seat in the ${sat.target}! The last ${alive.length} players each get one.`
+      : `The satellite is over: the last ${alive.length} players each win a seat in the ${sat.target}.`);
   }
 
   private rebalance() {
@@ -507,7 +552,7 @@ export class Tournament {
       });
       if (!this.finalTableAnnounced) {
         this.finalTableAnnounced = true;
-        this.pushEvent('final', `Final table! ${left} players left. Payouts: ${this.prizes.slice(0, left).map((x, k) => `${ordinal(k + 1)} $${x.toFixed(0)}`).join(', ')}`);
+        this.pushEvent('final', `Final table! ${left} players left. Payouts: ${this.prizes.slice(0, left).map((x, k) => `${ordinal(k + 1)} ${this.money(x, 0)}`).join(', ')}`);
       }
       return;
     }
@@ -583,8 +628,8 @@ export class Tournament {
     const w = t as unknown as Record<string, unknown>;
     w.id = snap.id;
     w.cfg = snap.cfg;
-    w.prizes = payoutStructure(snap.cfg.entrants, snap.cfg.buyIn);
-    w.paid = paidPlaces(snap.cfg.entrants);
+    w.prizes = prizesFor(snap.cfg);
+    w.paid = paidFor(snap.cfg, w.prizes as number[]);
     t.players = new Map(snap.players.map((p) => [p.id, p]));
     t.tables = snap.tables;
     t.levelIndex = snap.levelIndex;
@@ -617,12 +662,14 @@ export class Tournament {
       name: this.cfg.name,
       entrants: this.cfg.entrants,
       buyIn: this.cfg.buyIn,
-      place: h.busted ? h.place : this.finished ? 1 : this.heroRank(),
+      place: h.place > 0 ? h.place : this.heroRank(),
       prize: h.prize,
       handsPlayed: this.heroHands,
       stageReached: this.stageReached,
       start: this.cfg.start,
       field: this.cfg.field,
+      ...(this.cfg.currency ? { currency: this.cfg.currency } : {}),
+      ...(this.cfg.satellite ? { seat: h.prize === this.cfg.satellite.seatValue } : {}),
     };
   }
 }
