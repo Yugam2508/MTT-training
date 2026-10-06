@@ -13,6 +13,7 @@ import { getActiveTournament, setActiveTournament, useNav } from '../nav';
 import { Felt, fmtAmt } from '../components/Felt';
 import { GradeBadge, RangeGrid, Seg, Tile, fmtMoney } from '../components/common';
 import { LineChart } from '../components/charts';
+import { levelMinutes, liveActionDelayMs, liveDealDelayMs, liveEndDelayMs, fmtClock, BREAK_EVERY_LEVELS, BREAK_MINUTES } from '../../tournament/pace';
 
 export function PlayPage({ preset }: { preset?: string }) {
   const [t, setT] = useState<Tournament | null>(() => getActiveTournament());
@@ -31,7 +32,7 @@ function Setup({ onStart, initial }: { onStart: (t: Tournament) => void; initial
   const [heroStack, setHeroStack] = useState<HeroStackOption>(preset.config.heroStack);
   const scenario = preset.config.start !== 'beginning';
   const begin = () => {
-    const cfg = { ...preset.config, field, heroStack, seed: randomSeed() };
+    const cfg = { ...preset.config, field, heroStack, pace: settings.pace, seed: randomSeed() };
     onStart(new Tournament(cfg, settings.heroName || 'You'));
   };
   return (
@@ -54,7 +55,7 @@ function Setup({ onStart, initial }: { onStart: (t: Tournament) => void; initial
               <span className="pill">{p.config.entrants} players</span>
               <span className="pill">{p.config.currency ?? '$'}{p.config.buyIn} buy-in</span>
               {p.config.satellite && <span className="pill accent">{p.config.satellite.guaranteedSeats} seats</span>}
-              <span className="pill">{p.config.handsPerLevel} hands/level</span>
+              <span className="pill">{settings.pace === 'live' ? `${levelMinutes(p.config)}-minute levels` : `${p.config.handsPerLevel} hands/level`}</span>
             </div>
           </button>
         ))}
@@ -77,9 +78,18 @@ function Setup({ onStart, initial }: { onStart: (t: Tournament) => void; initial
             <Seg value={settings.coach} onChange={(v) => setSettings({ coach: v })} options={[{ v: 'instant', label: 'Stop on mistakes' }, { v: 'hand', label: 'After each hand' }, { v: 'off', label: 'Silent (review later)' }]} label="Coach" />
           </div>
           <div className="stack">
-            <span className="label">Speed</span>
-            <Seg value={settings.speed} onChange={(v) => setSettings({ speed: v })} options={[{ v: 'slow', label: 'Relaxed' }, { v: 'normal', label: 'Normal' }, { v: 'fast', label: 'Fast' }]} label="Speed" />
+            <span className="label">Pace</span>
+            <Seg value={settings.pace} onChange={(v) => setSettings({ pace: v })} options={[{ v: 'fast', label: 'Fast' }, { v: 'live', label: 'Live (real time)' }]} label="Pace" />
+            <span className="small muted">{settings.pace === 'live'
+              ? `Like a real table: about 30 hands an hour, ${levelMinutes(preset.config)}-minute levels by the clock, a ${BREAK_MINUTES}-minute break every ${BREAK_EVERY_LEVELS} levels, and you sit through every hand you fold. The clock pauses when you leave or read the coach, and you can resume later.`
+              : `Blinds go up every ${preset.config.handsPerLevel} hands and hands you've folded are skipped.`}</span>
           </div>
+          {settings.pace === 'fast' && (
+            <div className="stack">
+              <span className="label">Speed</span>
+              <Seg value={settings.speed} onChange={(v) => setSettings({ speed: v })} options={[{ v: 'slow', label: 'Relaxed' }, { v: 'normal', label: 'Normal' }, { v: 'fast', label: 'Fast' }]} label="Speed" />
+            </div>
+          )}
         </div>
         <div className="row">
           <button className="btn primary" onClick={begin}>Take your seat</button>
@@ -120,6 +130,10 @@ function TableView({ t, onLeave, onNew }: { t: Tournament; onLeave: () => void; 
   const handDecisions = useRef<DecisionRecord[]>([]);
   const seenEvents = useRef(t.events.length);
   const sp = SPEED[settings.speed];
+  const live = t.isLive();
+  /** Live pace: when the dealer finishes shuffling and deals the next hand. A ref, so it is set before
+   *  recording the hand re-renders the table (which would otherwise deal straight away). */
+  const dealAt = useRef(0);
 
   const pushToasts = useCallback(() => {
     const fresh = t.events.slice(seenEvents.current);
@@ -129,16 +143,36 @@ function TableView({ t, onLeave, onNew }: { t: Tournament; onLeave: () => void; 
     setTimeout(() => setToasts((x) => x.filter((e) => !fresh.includes(e))), 5000);
   }, [t]);
 
-  // make sure a hand is running
+  // make sure a hand is running (at live pace: after the shuffle, and not during a break)
   useEffect(() => {
-    if (!t.current && !t.heroOut && !t.finished && !overlay) {
-      t.startRound();
-      pushToasts();
-      bump();
+    if (t.current || t.heroOut || t.finished || overlay) return;
+    if (live) {
+      if (t.onBreak()) return;
+      const wait = dealAt.current - Date.now();
+      if (wait > 0) { const id = setTimeout(bump, Math.min(wait, 1000)); return () => clearTimeout(id); }
     }
+    t.startRound();
+    pushToasts();
+    bump();
   });
 
+  // live clock: runs while you're at the table, pauses when the tab is hidden or the coach is open
+  useEffect(() => {
+    if (!live || (overlay && overlay.kind !== 'result')) return;
+    let last = Date.now();
+    const id = setInterval(() => {
+      const now = Date.now();
+      const dt = Math.min(5000, now - last);
+      last = now;
+      if (document.visibilityState !== 'visible') return;
+      t.tick(dt);
+      bump();
+    }, 1000);
+    return () => clearInterval(id);
+  }, [t, live, overlay, bump]);
+
   const endHand = useCallback(() => {
+    if (t.isLive()) dealAt.current = Date.now() + liveDealDelayMs();
     const rec = t.finishRound();
     if (rec) recordHand(rec, handDecisions.current);
     const recs = handDecisions.current;
@@ -155,26 +189,28 @@ function TableView({ t, onLeave, onNew }: { t: Tournament; onLeave: () => void; 
     bump();
   }, [t, settings.coach, pushToasts, bump]);
 
-  // bot loop
+  // bot loop: one timer per step of the hand, so re-renders (the live clock) don't restart it
+  const step = t.current ? `${t.handNo}:${t.current.actions.length}:${t.current.done}` : '';
   useEffect(() => {
     const s = t.current;
     if (!s || overlay || busy) return;
     if (s.done) {
       const hi = t.heroIndex();
       const heroIn = !s.players[hi].folded;
-      const id = setTimeout(endHand, s.result?.showdown ? sp.showdown : heroIn ? sp.end : Math.min(sp.end, 500));
+      const showdown = !!s.result?.showdown;
+      const id = setTimeout(endHand, live ? liveEndDelayMs(showdown) : showdown ? sp.showdown : heroIn ? sp.end : Math.min(sp.end, 500));
       return () => clearTimeout(id);
     }
     if (t.isHeroTurn()) return;
     const heroFolded = s.players[t.heroIndex()].folded;
-    if (heroFolded) {
+    if (heroFolded && !live) {
       // fast-forward hands you're no longer in
       const id = setTimeout(() => { t.runBots(); bump(); }, 150);
       return () => clearTimeout(id);
     }
-    const id = setTimeout(() => { t.stepBot(); bump(); }, sp.bot * (0.6 + Math.random() * 0.8));
+    const id = setTimeout(() => { t.stepBot(); bump(); }, live ? liveActionDelayMs(s) : sp.bot * (0.6 + Math.random() * 0.8));
     return () => clearTimeout(id);
-  });
+  }, [step, overlay, busy, live, sp, t, endHand, bump]);
 
   const act = useCallback((a: PlayerAction) => {
     if (!t.isHeroTurn() || busy) return;
@@ -225,7 +261,7 @@ function TableView({ t, onLeave, onNew }: { t: Tournament; onLeave: () => void; 
       <div className="page-head">
         <div>
           <h1>{t.cfg.name}</h1>
-          <p>Table {t.heroTable()?.id ?? '–'} · Hand {t.handNo} · {STAGE_LABEL[t.stage()]}{t.icmRelevant() ? ' · ICM in play' : ''}</p>
+          <p>Table {t.heroTable()?.id ?? '–'} · Hand {t.handNo} · {STAGE_LABEL[t.stage()]}{t.icmRelevant() ? ' · ICM in play' : ''}{live ? ` · played ${fmtClock(t.playedMs)}` : ''}</p>
         </div>
         <div className="row">
           <Seg value={settings.units} onChange={(v) => setSettings({ units: v })} options={[{ v: 'bb', label: 'BB' }, { v: 'chips', label: 'Chips' }]} label="Units" />
@@ -246,7 +282,9 @@ function TableView({ t, onLeave, onNew }: { t: Tournament; onLeave: () => void; 
               overlay={overlay ? <OverlayView o={overlay} t={t} close={() => setOverlay(null)} onLeave={onLeave} onNew={onNew} nav={nav} session={sessionDecisions} /> : undefined}
             />
           ) : (
-            <div className="felt-wrap"><div className="felt" />{overlay && <OverlayView o={overlay} t={t} close={() => setOverlay(null)} onLeave={onLeave} onNew={onNew} nav={nav} session={sessionDecisions} />}</div>
+            <div className="felt-wrap"><div className="felt" />
+              {live && !overlay && !t.heroOut && !t.finished && <LiveWait t={t} dealAt={dealAt.current} onSkipBreak={() => { t.skipBreak(); bump(); }} />}
+              {overlay && <OverlayView o={overlay} t={t} close={() => setOverlay(null)} onLeave={onLeave} onNew={onNew} nav={nav} session={sessionDecisions} />}</div>
           )}
           {s && t.isHeroTurn() && !overlay && <ActionBar t={t} onAct={act} busy={busy} onHint={askHint} hint={hint} units={settings.units} />}
           {hint && t.isHeroTurn() && <AdvicePanel advice={hint} title="Coach hint" />}
@@ -254,7 +292,7 @@ function TableView({ t, onLeave, onNew }: { t: Tournament; onLeave: () => void; 
         <aside className="side">
           <div className="panel stack">
             <div className="clock">
-              <Tile label={`Level ${t.levelIndex + 1}`} value={<span className="num">{compact(lvl.sb)}/{compact(lvl.bb)}</span>} sub={`ante ${compact(lvl.ante)} · next in ${t.handsUntilLevel()}`} />
+              <Tile label={`Level ${t.levelIndex + 1}`} value={<span className="num">{compact(lvl.sb)}/{compact(lvl.bb)}</span>} sub={live ? `ante ${compact(lvl.ante)} · ${fmtClock(t.levelTimeLeftMs())} left` : `ante ${compact(lvl.ante)} · next in ${t.handsUntilLevel()}`} />
               <Tile label="Players" value={<span className="num">{t.playersLeft()}/{t.cfg.entrants}</span>} sub={t.cfg.satellite ? `${t.paid} seats` : `${t.paid} paid`} />
               <Tile label="Your stack" value={<span className="num">{(hero.stack / lvl.bb).toFixed(1)}bb</span>} sub={`rank ${t.heroRank()} · avg ${(t.avgStack() / lvl.bb).toFixed(0)}bb`} />
             </div>
@@ -291,6 +329,27 @@ function handResultText(t: Tournament): string | undefined {
   const names = w.map((i) => (i === t.heroIndex() ? 'You' : s.players[i].name)).join(' & ');
   const desc = s.result.showdown && w.length ? ` with ${s.result.descriptions[w[0]]?.toLowerCase()}` : '';
   return `${names} win${w.length === 1 && names !== 'You' ? 's' : ''} ${fmtAmt(s.result.won.reduce((a, b) => a + b, 0), s.cfg.bb, 'bb')}${desc}`;
+}
+
+/** Live pace, between hands: the dealer shuffling, or the break clock. */
+function LiveWait({ t, dealAt, onSkipBreak }: { t: Tournament; dealAt: number; onSkipBreak: () => void }) {
+  if (t.onBreak()) {
+    return (
+      <div className="felt-wait">
+        <span className="label">Break</span>
+        <strong className="num">{fmtClock(t.breakLeftMs)}</strong>
+        <span className="small">Play resumes at {t.fmtLevel(t.level())}.</span>
+        <button className="btn small" onClick={onSkipBreak}>Skip break</button>
+      </div>
+    );
+  }
+  const wait = dealAt - Date.now();
+  if (wait <= 0) return null;
+  return (
+    <div className="felt-wait">
+      <span className="small">The dealer is shuffling. Next hand in <span className="num">{fmtClock(wait)}</span></span>
+    </div>
+  );
 }
 
 function PayLadder({ t }: { t: Tournament }) {

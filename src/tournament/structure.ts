@@ -42,6 +42,10 @@ export interface TournamentConfig {
   /** Starting stack in chips (level 1 big blind is 100). */
   startingStack: number;
   handsPerLevel: number;
+  /** Live pace: blinds go up by the clock and hands take as long as at a real table. */
+  pace?: 'fast' | 'live';
+  /** Level length in minutes at live pace (the event's structure); otherwise derived from handsPerLevel. */
+  levelMinutes?: number;
   buyIn: number;
   /** Part of the buy-in that is a fee and not in the prize pool (live events: S$600 = S$530 + S$70). */
   fee?: number;
@@ -66,10 +70,11 @@ export interface Preset {
 
 /**
  * The SPC Main Event satellite as advertised (S$60, no fee, 10 seats guaranteed, seat = the S$530+70
- * Main Event entry). Field size and structure are assumptions: 100 entries is exactly the guarantee.
+ * Main Event entry). Field size and structure are assumptions: 100 entries is exactly the guarantee,
+ * with 20-minute levels.
  */
 const SPC_SATELLITE: Omit<TournamentConfig, 'seed' | 'start' | 'heroStack'> = {
-  name: 'SPC Main Event Satellite', entrants: 100, tableSize: 9, startingStack: 5000, handsPerLevel: 8,
+  name: 'SPC Main Event Satellite', entrants: 100, tableSize: 9, startingStack: 5000, handsPerLevel: 8, levelMinutes: 20,
   buyIn: 60, currency: 'S$', satellite: { seatValue: 600, guaranteedSeats: 10, target: 'SPC Main Event' }, field: 'soft',
 };
 
@@ -79,7 +84,7 @@ const SPC_SATELLITE: Omit<TournamentConfig, 'seed' | 'start' | 'heroStack'> = {
  * 250 is a typical one. Starting blinds are not published: 12,000 chips is 120bb at this engine's 50/100.
  */
 const SPC_MAIN: Omit<TournamentConfig, 'seed' | 'start' | 'heroStack'> = {
-  name: 'SPC Main Event', entrants: 250, tableSize: 9, startingStack: 12000, handsPerLevel: 13,
+  name: 'SPC Main Event', entrants: 250, tableSize: 9, startingStack: 12000, handsPerLevel: 13, levelMinutes: 30,
   buyIn: 600, fee: 70, paid: 27, currency: 'S$', field: 'mixed',
 };
 

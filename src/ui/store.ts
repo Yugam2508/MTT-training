@@ -13,6 +13,8 @@ export interface Settings {
   heroName: string;
   coach: 'instant' | 'hand' | 'off';
   speed: 'slow' | 'normal' | 'fast';
+  /** Tournament pace: blinds by hands and folded hands skipped, or live (real-time) pace. */
+  pace: 'fast' | 'live';
   units: 'bb' | 'chips';
   fourColor: boolean;
   hud: boolean;
@@ -84,7 +86,7 @@ export const STORAGE_OK = (() => {
 })();
 
 export const DEFAULT_SETTINGS: Settings = {
-  heroName: 'You', coach: 'instant', speed: 'normal', units: 'bb', fourColor: false, hud: true, revealTypes: false, theme: 'system',
+  heroName: 'You', coach: 'instant', speed: 'normal', pace: 'fast', units: 'bb', fourColor: false, hud: true, revealTypes: false, theme: 'system',
 };
 
 export const emptyAgg = (): AggStats => ({ all: emptyCounts(), byStage: {}, rfi: {} });

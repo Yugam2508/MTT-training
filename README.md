@@ -8,7 +8,9 @@ more often and convert deep runs into wins:
   table. Opponents are seven distinct player types (winning reg, TAG, LAG, nit, calling station,
   recreational, maniac) mixed by stake level. Scenario starts drop you straight into the middle
   stages, the bubble or the final table. Satellite formats (the SPC Main Event satellite: S$60,
-  10 seats of S$600) pay equal seats and stop once every remaining player has one.
+  10 seats of S$600) pay equal seats and stop once every remaining player has one. **Live pace**
+  plays any format in real time: about 30 hands an hour, blinds by the clock (30-minute levels for
+  the SPC Main Event), a 15-minute break every 4 levels, and every hand you fold plays out.
 - **Get coached** on every decision. Preflop all-ins (open-shoves, re-shoves, calling shoves) are
   solved with the real stacks in chip EV or, near the money, full-field ICM $EV. Other preflop
   spots are compared to baseline charts. Postflop calls and folds are checked against pot odds and

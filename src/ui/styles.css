@@ -182,6 +182,9 @@ table.data tr.clickable:hover td { background: var(--surface-2); }
 .play-layout { display: grid; grid-template-columns: minmax(0, 1fr) 340px; gap: 16px; align-items: start; }
 @media (max-width: 980px) { .play-layout { grid-template-columns: minmax(0, 1fr); } }
 .felt-wrap { position: relative; width: 100%; aspect-ratio: 16 / 10; min-height: 360px; }
+.felt-wait { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 8px; color: var(--on-felt); text-align: center; padding: 16px; }
+.felt-wait strong { font-size: 2.4rem; }
+.felt-wait .label { color: var(--on-felt-muted); }
 @media (max-width: 640px) { .felt-wrap { aspect-ratio: 3 / 4; min-height: 440px; } }
 .felt {
   position: absolute; inset: 8% 7%;

@@ -15,6 +15,7 @@ import { POS_LABEL } from '../theory/positions';
 import { computeFlags, accumulate, emptyCounts, type HandFlags, type StatCounts } from '../analysis/handFlags';
 import { blindLevel, levelForDepth, stageOf, type Level, type Stage, type TournamentConfig } from './structure';
 import { makeNames } from './names';
+import { levelMinutes, BREAK_EVERY_LEVELS, BREAK_MINUTES } from './pace';
 
 export interface TPlayer {
   id: string;
@@ -125,6 +126,10 @@ export interface TournamentSnapshot {
   roundStartStacks: [string, number][];
   finalTableAnnounced: boolean;
   stackTrail: number[];
+  levelElapsedMs?: number;
+  breakLeftMs?: number;
+  levelsSinceBreak?: number;
+  playedMs?: number;
 }
 
 export class Tournament {
@@ -152,6 +157,12 @@ export class Tournament {
   stageReached: Stage = 'early';
   /** Hero stack in big blinds at the start of each hand. */
   stackTrail: number[] = [];
+  // Live pace clock (only used when cfg.pace === 'live'): time played at this level, break time left,
+  // levels since the last break, and total play time.
+  levelElapsedMs = 0;
+  breakLeftMs = 0;
+  levelsSinceBreak = 0;
+  playedMs = 0;
   private roundStartStacks = new Map<string, number>();
   private finalTableAnnounced = false;
 
@@ -263,6 +274,37 @@ export class Tournament {
     return 1 + this.alive().filter((p) => p.stack > h.stack).length;
   }
   handsUntilLevel() { return this.cfg.handsPerLevel - this.roundsAtLevel; }
+  isLive() { return this.cfg.pace === 'live'; }
+  levelMs() { return levelMinutes(this.cfg) * 60_000; }
+  levelTimeLeftMs() { return Math.max(0, this.levelMs() - this.levelElapsedMs); }
+  onBreak() { return this.breakLeftMs > 0; }
+
+  /** Advance the live clock. Blinds change between hands (see startRound); breaks count down. */
+  tick(ms: number) {
+    if (!this.isLive() || this.finished || this.heroOut) return;
+    if (this.breakLeftMs > 0) { this.breakLeftMs = Math.max(0, this.breakLeftMs - ms); return; }
+    this.levelElapsedMs += ms;
+    this.playedMs += ms;
+  }
+
+  skipBreak() { this.breakLeftMs = 0; }
+
+  /** Live pace: start any levels whose time has come, with a break every few levels. */
+  private applyClock() {
+    while (this.breakLeftMs === 0 && this.levelElapsedMs >= this.levelMs()) {
+      this.levelElapsedMs -= this.levelMs();
+      this.levelIndex++;
+      this.roundsAtLevel = 0;
+      this.levelsSinceBreak++;
+      if (this.levelsSinceBreak >= BREAK_EVERY_LEVELS) {
+        this.levelsSinceBreak = 0;
+        this.breakLeftMs = BREAK_MINUTES * 60_000;
+        this.pushEvent('level', `Break: ${BREAK_MINUTES} minutes. Play resumes at ${this.fmtLevel(this.level())}.`);
+      } else {
+        this.pushEvent('level', `Blinds up: ${this.fmtLevel(this.level())}`);
+      }
+    }
+  }
   /** Stacks and remaining payouts for full-field ICM. */
   icmField(): { ids: string[]; stacks: number[]; payouts: number[] } {
     const a = this.alive();
@@ -351,6 +393,10 @@ export class Tournament {
   /** Start the next round. Returns the hero's hand (or null if the hero is out / tournament over). */
   startRound(): HandState | null {
     if (this.finished || this.heroOut) return null;
+    if (this.isLive()) {
+      this.applyClock();
+      if (this.onBreak()) return null;
+    }
     this.roundStartStacks.clear();
     for (const p of this.alive()) this.roundStartStacks.set(p.id, p.stack);
     this.handNo++;
@@ -411,7 +457,7 @@ export class Tournament {
     if (!this.finished) {
       this.rebalance();
       this.roundsAtLevel++;
-      if (this.roundsAtLevel >= this.cfg.handsPerLevel) {
+      if (!this.isLive() && this.roundsAtLevel >= this.cfg.handsPerLevel) {
         this.levelIndex++;
         this.roundsAtLevel = 0;
         this.pushEvent('level', `Blinds up: ${this.fmtLevel(this.level())}`);
@@ -621,6 +667,10 @@ export class Tournament {
       roundStartStacks: [...this.roundStartStacks.entries()],
       finalTableAnnounced: this.finalTableAnnounced,
       stackTrail: this.stackTrail,
+      levelElapsedMs: this.levelElapsedMs,
+      breakLeftMs: this.breakLeftMs,
+      levelsSinceBreak: this.levelsSinceBreak,
+      playedMs: this.playedMs,
     };
   }
 
@@ -652,6 +702,10 @@ export class Tournament {
     w.roundStartStacks = new Map(snap.roundStartStacks);
     w.finalTableAnnounced = snap.finalTableAnnounced;
     t.stackTrail = snap.stackTrail ?? [];
+    t.levelElapsedMs = snap.levelElapsedMs ?? 0;
+    t.breakLeftMs = snap.breakLeftMs ?? 0;
+    t.levelsSinceBreak = snap.levelsSinceBreak ?? 0;
+    t.playedMs = snap.playedMs ?? 0;
     return t;
   }
 
