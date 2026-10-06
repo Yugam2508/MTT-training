@@ -5,4 +5,6 @@ interface ImportMetaEnv {
   readonly VITE_API_URL?: string;
   readonly VITE_CLOUD?: string;
   readonly VITE_SITE_URL?: string;
+  /** SPC registration watcher status endpoint override. */
+  readonly VITE_SPC_WATCH_URL?: string;
 }

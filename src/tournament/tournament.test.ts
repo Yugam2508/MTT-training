@@ -134,4 +134,21 @@ describe('tournament', () => {
     expect(bfAtSeatBubble('spcsatbubble')).toBeGreaterThan(5);
     expect(bfAtSeatBubble('bubble')).toBeLessThanOrEqual(3);
   });
+
+  it('models the SPC Main Event: fee out of the pool, 27 paid, Day 2 start', () => {
+    const main = PRESETS.find((p) => p.key === 'spcmain')!;
+    const t = new Tournament({ ...main.config, seed: 4 });
+    expect(t.paid).toBe(27);
+    expect(t.prizes.length).toBe(27);
+    expect(t.prizes.reduce((a, b) => a + b, 0)).toBeCloseTo(250 * 530, 2);
+    expect(t.prizes[0]).toBeGreaterThan(t.prizes[26] * 10);
+    const day2 = PRESETS.find((p) => p.key === 'spcday2')!;
+    const cfg = { ...day2.config, seed: 8 };
+    const d = new Tournament(cfg);
+    expect(d.playersLeft()).toBeGreaterThan(d.paid);
+    expect(d.playersLeft()).toBeLessThan(cfg.entrants);
+    expect(d.alive().reduce((a, p) => a + p.stack, 0)).toBe(cfg.entrants * cfg.startingStack);
+    const { rounds, maxMs } = playOut(cfg, 200);
+    console.log(`SPC Day 2: ${d.playersLeft()} left at start; ${rounds} rounds, max round ${maxMs.toFixed(0)}ms`);
+  });
 });

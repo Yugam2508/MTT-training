@@ -91,13 +91,14 @@ export const HERO_ID = 'hero';
 
 function prizesFor(cfg: TournamentConfig): number[] {
   const sat = cfg.satellite;
-  return sat ? satellitePayouts(cfg.entrants, cfg.buyIn, sat.seatValue, sat.guaranteedSeats) : payoutStructure(cfg.entrants, cfg.buyIn);
+  if (sat) return satellitePayouts(cfg.entrants, cfg.buyIn - (cfg.fee ?? 0), sat.seatValue, sat.guaranteedSeats);
+  return payoutStructure(cfg.entrants, cfg.buyIn - (cfg.fee ?? 0), cfg.paid);
 }
 
 /** Places paid. In a satellite this is the number of seats; a leftover cash prize is not counted. */
 function paidFor(cfg: TournamentConfig, prizes: number[]): number {
   const sat = cfg.satellite;
-  return sat ? prizes.filter((x) => x === sat.seatValue).length : paidPlaces(cfg.entrants);
+  return sat ? prizes.filter((x) => x === sat.seatValue).length : cfg.paid ?? paidPlaces(cfg.entrants);
 }
 
 export interface TournamentSnapshot {

@@ -43,6 +43,10 @@ export interface TournamentConfig {
   startingStack: number;
   handsPerLevel: number;
   buyIn: number;
+  /** Part of the buy-in that is a fee and not in the prize pool (live events: S$600 = S$530 + S$70). */
+  fee?: number;
+  /** Places paid, when the event fixes it. Defaults to about 15% of the field. */
+  paid?: number;
   /** Money prefix for display, e.g. 'S$'. Defaults to '$'. */
   currency?: string;
   /** Satellite: the prizes are equal seats, and play stops once every remaining player has one. */
@@ -67,6 +71,16 @@ export interface Preset {
 const SPC_SATELLITE: Omit<TournamentConfig, 'seed' | 'start' | 'heroStack'> = {
   name: 'SPC Main Event Satellite', entrants: 100, tableSize: 9, startingStack: 5000, handsPerLevel: 8,
   buyIn: 60, currency: 'S$', satellite: { seatValue: 600, guaranteedSeats: 10, target: 'SPC Main Event' }, field: 'soft',
+};
+
+/**
+ * SPC Main Event (Natural8): S$530 + S$70, 7,000 chips plus the 5,000 add-on, 30-minute levels
+ * (about 13 live hands), roughly 27 places paid. Recent fields were 203-398 entries across four flights;
+ * 250 is a typical one. Starting blinds are not published: 12,000 chips is 120bb at this engine's 50/100.
+ */
+const SPC_MAIN: Omit<TournamentConfig, 'seed' | 'start' | 'heroStack'> = {
+  name: 'SPC Main Event', entrants: 250, tableSize: 9, startingStack: 12000, handsPerLevel: 13,
+  buyIn: 600, fee: 70, paid: 27, currency: 'S$', field: 'mixed',
 };
 
 export const PRESETS: Preset[] = [
@@ -99,6 +113,16 @@ export const PRESETS: Preset[] = [
     key: 'final', label: 'Final Table Trainer',
     blurb: 'The last nine of a 180-player field. Big pay jumps, short-handed play and heads-up for the title.',
     config: { name: 'Final Table Trainer', entrants: 180, tableSize: 9, startingStack: 10000, handsPerLevel: 8, buyIn: 55, field: 'mixed', start: 'final', heroStack: 'random' },
+  },
+  {
+    key: 'spcmain', label: 'SPC Main Event',
+    blurb: 'The S$600 Singapore Poker Championships Main Event: 250 entries, 120bb with the add-on, 30-minute levels, 27 paid and about S$30,000 for 1st.',
+    config: { ...SPC_MAIN, start: 'beginning', heroStack: 'average' },
+  },
+  {
+    key: 'spcday2', label: 'SPC Main Event Day 2',
+    blurb: 'Skip the flights: start Day 2 of the SPC Main Event with about 110 players left and ~35bb stacks, then play through the bubble to the final table.',
+    config: { ...SPC_MAIN, name: 'SPC Main Event Day 2', start: 'middle', heroStack: 'random' },
   },
   {
     key: 'spcsat', label: 'SPC Satellite',

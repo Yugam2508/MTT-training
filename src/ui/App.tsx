@@ -12,6 +12,7 @@ import { SettingsPage } from './pages/Settings';
 import { AccountPage, statusText } from './pages/Account';
 import { useCloud } from '../cloud/cloud';
 import { STORAGE_OK } from './store';
+import { useSpcWatch, spcAlert, SPC_SITE } from '../cloud/spcWatch';
 
 const TABS: { page: Route['page']; label: string }[] = [
   { page: 'home', label: 'Home' }, { page: 'play', label: 'Play' }, { page: 'train', label: 'Train' }, { page: 'learn', label: 'Learn' },
@@ -86,8 +87,30 @@ export function App() {
           This browser isn’t saving your progress (private mode or blocked site data).{cloud.available ? ' Sign in to keep it in the cloud.' : ' Use a normal window to keep it.'}
         </div>
       )}
+      <SpcBanner />
       <main>{page}</main>
     </NavContext.Provider>
+  );
+}
+
+const DISMISS_KEY = 'mttcoach.spcDismissed';
+
+/** Shown when the SPC watcher sees registration open, or the SPC site changed in the last few days. */
+function SpcBanner() {
+  const w = useSpcWatch();
+  const alert = spcAlert(w);
+  const key = `${alert}:${w?.lastAlert?.at ?? ''}`;
+  const [dismissed, setDismissed] = useState(() => { try { return localStorage.getItem(DISMISS_KEY); } catch { return null; } });
+  if (!alert || dismissed === key) return null;
+  const dismiss = () => { setDismissed(key); try { localStorage.setItem(DISMISS_KEY, key); } catch { /* ignore */ } };
+  return (
+    <div className={`spc-banner ${alert}`} role="status">
+      <span>{alert === 'open'
+        ? <><strong>SPC XXIII registration looks open.</strong> Register for the December 18–20 event on the SPC website.</>
+        : <><strong>The SPC website changed.</strong> Check whether SPC XXIII registration has opened.</>}</span>
+      <a className="btn small primary" href={SPC_SITE} target="_blank" rel="noreferrer">Open sgpokerchamps.com</a>
+      <button className="btn small ghost" onClick={dismiss} aria-label="Dismiss">Dismiss</button>
+    </div>
   );
 }
 

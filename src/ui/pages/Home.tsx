@@ -7,8 +7,9 @@ import { ordinal } from '../../tournament/tournament';
 import { useData } from '../store';
 import { useNav, getActiveTournament } from '../nav';
 import { Tile, fmtMoney, fmtPct } from '../components/common';
+import { useSpcWatch, spcAlert, SPC_SITE } from '../../cloud/spcWatch';
 
-const QUICK_START = ['quick27', 'turbo90', 'major180', 'bubble', 'final', 'spcsat'];
+const QUICK_START = ['quick27', 'turbo90', 'bubble', 'final', 'spcmain', 'spcsat'];
 
 export function HomePage() {
   const nav = useNav();
@@ -69,6 +70,8 @@ export function HomePage() {
         <div className="panel"><Tile label="Lessons" value={`${lessonsDone}/${LESSONS.length}`} sub="completed" /></div>
       </div>
 
+      <SpcWatchCard />
+
       <section className="stack">
         <div className="spread"><h2>Quick start</h2><button className="btn ghost" onClick={() => nav({ page: 'play' })}>All formats →</button></div>
         <div className="grid cols-3">
@@ -99,3 +102,30 @@ export function HomePage() {
     </div>
   );
 }
+
+function ago(iso: string): string {
+  const m = Math.max(0, Math.round((Date.now() - new Date(iso).getTime()) / 60000));
+  return m < 60 ? `${m} min ago` : m < 48 * 60 ? `${Math.round(m / 60)} h ago` : `${Math.round(m / 1440)} days ago`;
+}
+
+/** The SPC XXIII registration watcher at a glance, with the SPC practice formats. */
+function SpcWatchCard() {
+  const nav = useNav();
+  const w = useSpcWatch();
+  if (!w || w.status === 'unknown' || !w.checkedAt) return null;
+  const alert = spcAlert(w);
+  const text = alert === 'open' ? 'registration looks open' : alert === 'changed' ? 'the site changed recently: check it' : 'not open yet';
+  return (
+    <div className="panel spread" style={{ flexWrap: 'wrap', gap: 12 }}>
+      <div className="stack" style={{ gap: 2 }}>
+        <span className="label">SPC XXIII watch · December 18–20, Aegean Paradise</span>
+        <span className="small">Checking <a href={SPC_SITE} target="_blank" rel="noreferrer">sgpokerchamps.com</a> every 2 hours for registration. Last checked {ago(w.checkedAt)}: <strong>{text}</strong>.</span>
+      </div>
+      <div className="row">
+        <button className="btn small" onClick={() => nav({ page: 'play', preset: 'spcsat' })}>Practise the satellite</button>
+        <button className="btn small" onClick={() => nav({ page: 'play', preset: 'spcmain' })}>Practise the Main Event</button>
+      </div>
+    </div>
+  );
+}
+

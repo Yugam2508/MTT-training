@@ -77,6 +77,12 @@ supabase functions deploy mtt-api --no-verify-jwt
 
 The site is a static Vite build (`npm run build` → `dist/`); Vercel builds it from this repo.
 
+## SPC registration watcher
+
+A second Edge Function, `spc-watch`, checks sgpokerchamps.com every two hours (pg_cron) for
+SPC XXIII registration, sends a phone notification through ntfy when it opens, and feeds a banner
+in the app. Setup, notifications and an optional email routine: [docs/spc-reminder.md](docs/spc-reminder.md).
+
 ## How it works
 
 See [docs/PLAN.md](docs/PLAN.md) for the design. In short:
@@ -92,7 +98,7 @@ src/content     lessons, quizzes, playbooks
 src/drills      drill generators
 src/ui          React UI
 src/cloud       accounts, background sync, order-independent merge
-supabase        Edge Function (cloud API) and database migration
+supabase        Edge Functions (cloud API, SPC registration watcher) and database migrations
 server          local copy of the API for the Vite dev/preview server
 ```
 

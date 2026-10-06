@@ -12,8 +12,7 @@ export function paidPlaces(entrants: number): number {
  * Typical online MTT curve: prize_k proportional to 1/k^alpha, with a min-cash of
  * roughly 1.5-2.5 buy-ins for large fields. Rounded to cents, remainder to 1st.
  */
-export function payoutStructure(entrants: number, buyIn: number): number[] {
-  const paid = paidPlaces(entrants);
+export function payoutStructure(entrants: number, buyIn: number, paid = paidPlaces(entrants)): number[] {
   const pool = entrants * buyIn;
   if (paid === 1) return [pool];
   if (paid === 3 && entrants <= 10) return [0.5, 0.3, 0.2].map((f) => Math.round(pool * f * 100) / 100);

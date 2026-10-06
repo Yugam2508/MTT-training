@@ -4,3 +4,7 @@ project_id = "mtt-coach"
 [functions.mtt-api]
 # The API issues and verifies its own session tokens, so the gateway's JWT check is off.
 verify_jwt = false
+
+[functions.spc-watch]
+# Called by pg_cron and the MTT Coach banner without a key; it only reads a public website.
+verify_jwt = false
