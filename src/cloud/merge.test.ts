@@ -26,4 +26,23 @@ describe('merge', () => {
     expect(docKey(mergeDocs(m, m))).toBe(docKey(m));
     expect(docKey(mergeDocs(m, a))).toBe(docKey(m));
   });
+  it('a stats reset beats older copies but keeps newer records and progress', () => {
+    const drills = { A: { pushfold: { attempts: 5, correct: 4, streak: 2, best: 3, recent: [1], ts: 5 } } };
+    const old = doc({ hands: [hand('h1', 1), hand('h2', 2)], aggBy: { A: agg(10) }, drillsBy: drills, lessons: { icm: { read: true, quizBest: 2, quizTotal: 4 } } });
+    const reset = doc({ hands: [hand('h3', 200)], aggBy: { B: agg(1) }, drillsBy: drills, lessons: { icm: { read: true, quizBest: 2, quizTotal: 4 } }, statsResetAt: 100 });
+    for (const m of [mergeDocs(old, reset), mergeDocs(reset, old)]) {
+      expect(m.hands.map((h) => h.id)).toEqual(['h3']);
+      expect(Object.keys(m.aggBy)).toEqual(['B']);
+      expect(m.drillsBy.A.pushfold!.attempts).toBe(5);
+      expect(m.lessons.icm?.read).toBe(true);
+      expect(m.statsResetAt).toBe(100);
+    }
+    expect(docKey(mergeDocs(old, reset))).toBe(docKey(mergeDocs(reset, old)));
+  });
+  it('a full reset also clears older drills and lessons', () => {
+    const old = doc({ drillsBy: { A: { pushfold: { attempts: 5, correct: 4, streak: 2, best: 3, recent: [1], ts: 5 } } }, lessons: { icm: { read: true, quizBest: 2, quizTotal: 4 } } });
+    const m = mergeDocs(old, doc({ statsResetAt: 100, progressResetAt: 100 }));
+    expect(m.drillsBy).toEqual({});
+    expect(m.lessons).toEqual({});
+  });
 });

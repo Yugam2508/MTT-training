@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { useData, setSettings, resetData, exportData, importData } from '../store';
+import { useData, getData, setSettings, resetData, resetStats, exportData, importData } from '../store';
 import { Seg } from '../components/common';
 import { useCloud } from '../../cloud/cloud';
 import { useNav } from '../nav';
@@ -20,6 +20,7 @@ export function SettingsPage() {
   const [importText, setImportText] = useState('');
   const [msg, setMsg] = useState<string | null>(null);
   const [confirmReset, setConfirmReset] = useState(false);
+  const [confirmStats, setConfirmStats] = useState(false);
   const copy = async () => {
     const text = exportData();
     setExported(text);
@@ -63,8 +64,11 @@ export function SettingsPage() {
           <textarea className="input mono" id="set-import" rows={3} placeholder="…or paste an export here" value={importText} onChange={(e) => setImportText(e.target.value)} />
           <div><button className="btn" disabled={!importText.trim()} onClick={() => setMsg(importData(importText) ? 'Imported.' : 'That text isn’t an MTT Coach export.')}>Import pasted data</button></div>
           {msg && <p className="small">{msg}</p>}
+          {!confirmStats ? <div><button className="btn danger" onClick={() => setConfirmStats(true)}>Reset tournament stats…</button></div> : (
+            <div className="row"><span className="small">Delete all tournament results, hands, graded decisions and stats on every device? Lessons and drill scores stay.</span><button className="btn danger" onClick={() => { resetStats(); setConfirmStats(false); setMsg('Tournament stats cleared. Fresh start.'); }}>Reset stats</button><button className="btn" onClick={() => setConfirmStats(false)}>Cancel</button></div>
+          )}
           {!confirmReset ? <div><button className="btn danger" onClick={() => setConfirmReset(true)}>Reset all data…</button></div> : (
-            <div className="row"><span className="small">Delete all hands, results and progress?</span><button className="btn danger" onClick={() => { resetData(); setConfirmReset(false); setMsg('All data cleared.'); }}>Delete everything</button><button className="btn" onClick={() => setConfirmReset(false)}>Cancel</button></div>
+            <div className="row"><span className="small">Delete all hands, results, drills and lesson progress on every device?</span><button className="btn danger" onClick={() => { resetData(getData().owner, true); setConfirmReset(false); setMsg('All data cleared.'); }}>Delete everything</button><button className="btn" onClick={() => setConfirmReset(false)}>Cancel</button></div>
           )}
         </div>
       </div>

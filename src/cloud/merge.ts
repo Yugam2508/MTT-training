@@ -16,13 +16,19 @@ function unionById<T extends { id: string; ts: number }>(a: T[], b: T[], max: nu
 }
 
 export function mergeDocs(a: SyncDoc, b: SyncDoc): SyncDoc {
-  const aggBy = { ...a.aggBy };
-  for (const [dev, agg] of Object.entries(b.aggBy)) {
+  // Copies from before the newest reset contribute nothing reset by it.
+  const statsResetAt = Math.max(a.statsResetAt ?? 0, b.statsResetAt ?? 0);
+  const progressResetAt = Math.max(a.progressResetAt ?? 0, b.progressResetAt ?? 0);
+  const statsOk = (d: SyncDoc) => (d.statsResetAt ?? 0) === statsResetAt;
+  const progressOk = (d: SyncDoc) => (d.progressResetAt ?? 0) === progressResetAt;
+  const recent = <T extends { ts: number }>(xs: T[]) => xs.filter((x) => x.ts >= statsResetAt);
+  const aggBy = statsOk(a) ? { ...a.aggBy } : {};
+  for (const [dev, agg] of Object.entries(statsOk(b) ? b.aggBy : {})) {
     const cur = aggBy[dev];
     if (!cur || agg.all.hands > cur.all.hands) aggBy[dev] = agg;
   }
-  const drillsBy: Record<string, DrillMap> = { ...a.drillsBy };
-  for (const [dev, map] of Object.entries(b.drillsBy)) {
+  const drillsBy: Record<string, DrillMap> = progressOk(a) ? { ...a.drillsBy } : {};
+  for (const [dev, map] of Object.entries(progressOk(b) ? b.drillsBy : {})) {
     const cur = drillsBy[dev] ?? {};
     const merged: DrillMap = { ...cur };
     for (const [id, p] of Object.entries(map) as [DrillId, NonNullable<DrillMap[DrillId]>][]) {
@@ -31,19 +37,21 @@ export function mergeDocs(a: SyncDoc, b: SyncDoc): SyncDoc {
     }
     drillsBy[dev] = merged;
   }
-  const lessons = { ...a.lessons };
-  for (const [id, p] of Object.entries(b.lessons) as [LessonId, NonNullable<SyncDoc['lessons'][LessonId]>][]) {
+  const lessons = progressOk(a) ? { ...a.lessons } : {};
+  for (const [id, p] of Object.entries(progressOk(b) ? b.lessons : {}) as [LessonId, NonNullable<SyncDoc['lessons'][LessonId]>][]) {
     const c = lessons[id];
     lessons[id] = c ? { read: c.read || p.read, quizBest: Math.max(c.quizBest, p.quizBest), quizTotal: Math.max(c.quizTotal, p.quizTotal) } : p;
   }
   return {
     v: 2,
-    results: unionById(a.results, b.results, 5000),
-    hands: unionById(a.hands, b.hands, MAX_HANDS),
-    decisions: unionById(a.decisions, b.decisions, MAX_DECISIONS),
+    results: unionById(recent(a.results), recent(b.results), 5000),
+    hands: unionById(recent(a.hands), recent(b.hands), MAX_HANDS),
+    decisions: unionById(recent(a.decisions), recent(b.decisions), MAX_DECISIONS),
     aggBy,
     drillsBy,
     lessons,
+    statsResetAt,
+    progressResetAt,
   };
 }
 
@@ -53,5 +61,5 @@ export function docKey(d: SyncDoc): string {
   const agg = Object.entries(d.aggBy).sort().map(([k, v]) => `${k}=${v.all.hands}`).join(',');
   const drills = Object.entries(d.drillsBy).sort().map(([k, m]) => `${k}=${Object.entries(m).sort().map(([i, p]) => `${i}:${p?.attempts}`).join('/')}`).join(',');
   const lessons = Object.entries(d.lessons).sort().map(([k, p]) => `${k}:${p?.read ? 1 : 0}${p?.quizBest}`).join(',');
-  return [ids(d.results), ids(d.hands), ids(d.decisions), agg, drills, lessons].join('|');
+  return [ids(d.results), ids(d.hands), ids(d.decisions), agg, drills, lessons, d.statsResetAt ?? 0, d.progressResetAt ?? 0].join('|');
 }

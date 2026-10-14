@@ -41,6 +41,13 @@ export interface SyncDoc {
   aggBy: Record<string, AggStats>;
   drillsBy: Record<string, DrillMap>;
   lessons: Partial<Record<LessonId, LessonProgress>>;
+  /**
+   * Reset markers (ms). A copy made before the newest reset is ignored on merge, so a reset on one
+   * device survives syncing with older copies: statsResetAt covers results, hands, decisions and
+   * stat counters; progressResetAt covers drills and lessons.
+   */
+  statsResetAt?: number;
+  progressResetAt?: number;
 }
 
 export interface AppData extends SyncDoc {
@@ -154,7 +161,10 @@ function load(): AppData {
 
 /** Extract the synced portion. */
 export function toSyncDoc(d: AppData): SyncDoc {
-  return { v: 2, results: d.results, hands: d.hands, decisions: d.decisions, aggBy: d.aggBy, drillsBy: d.drillsBy, lessons: d.lessons };
+  return {
+    v: 2, results: d.results, hands: d.hands, decisions: d.decisions, aggBy: d.aggBy, drillsBy: d.drillsBy, lessons: d.lessons,
+    statsResetAt: d.statsResetAt ?? 0, progressResetAt: d.progressResetAt ?? 0,
+  };
 }
 
 let data: AppData = load();
@@ -259,9 +269,21 @@ export function recordLesson(id: LessonId, patch: Partial<LessonProgress>) {
   });
 }
 
-export function resetData(owner: string | null = null) {
+/** Clear tournament results, hands, graded decisions and stats; keep drills, lessons and settings. Syncs. */
+export function resetStats() {
+  update((d) => {
+    d.results = []; d.hands = []; d.decisions = []; d.aggBy = {};
+    d.statsResetAt = Date.now();
+    derive(d);
+  });
+  try { localStorage.removeItem(ACTIVE_KEY); } catch { /* ignore */ }
+}
+
+/** Clear everything except settings. With `everywhere`, also clears the synced copy on other devices. */
+export function resetData(owner: string | null = null, everywhere = false) {
   const settings = data.settings;
-  data = { ...fresh(), settings, owner, rev: data.rev + 1 };
+  const now = Date.now();
+  data = { ...fresh(), settings, owner, rev: data.rev + 1, ...(everywhere ? { statsResetAt: now, progressResetAt: now } : {}) };
   try { localStorage.removeItem(ACTIVE_KEY); } catch { /* ignore */ }
   listeners.forEach((l) => l());
   save();
@@ -295,6 +317,7 @@ export function applySyncDoc(doc: SyncDoc, owner: string | null) {
   update((d) => {
     d.results = doc.results; d.hands = doc.hands; d.decisions = doc.decisions;
     d.aggBy = doc.aggBy; d.drillsBy = doc.drillsBy; d.lessons = doc.lessons;
+    d.statsResetAt = doc.statsResetAt ?? 0; d.progressResetAt = doc.progressResetAt ?? 0;
     d.owner = owner;
     derive(d);
   }, { synced: false });
