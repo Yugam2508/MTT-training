@@ -55,6 +55,7 @@ function Setup({ onStart, initial }: { onStart: (t: Tournament) => void; initial
               <span className="pill">{p.config.entrants} players</span>
               <span className="pill">{p.config.currency ?? '$'}{p.config.buyIn} buy-in</span>
               {p.config.satellite && <span className="pill accent">{p.config.satellite.guaranteedSeats} seats</span>}
+              {p.config.mysteryBounty && <span className="pill accent">mystery bounties</span>}
               <span className="pill">{settings.pace === 'live' ? `${levelMinutes(p.config)}-minute levels` : `${p.config.handsPerLevel} hands/level`}</span>
             </div>
           </button>
@@ -81,7 +82,7 @@ function Setup({ onStart, initial }: { onStart: (t: Tournament) => void; initial
             <span className="label">Pace</span>
             <Seg value={settings.pace} onChange={(v) => setSettings({ pace: v })} options={[{ v: 'fast', label: 'Fast' }, { v: 'live', label: 'Live (real time)' }]} label="Pace" />
             <span className="small muted">{settings.pace === 'live'
-              ? `Like a real table: about 30 hands an hour, ${levelMinutes(preset.config)}-minute levels by the clock, a ${BREAK_MINUTES}-minute break every ${BREAK_EVERY_LEVELS} levels, and you sit through every hand you fold. The clock pauses when you leave or read the coach, and you can resume later.`
+              ? `Like a real table: about 30 hands an hour, ${levelMinutes(preset.config)}-minute levels by the clock, ${preset.config.schedule ? 'the breaks on the event’s own structure sheet' : `a ${BREAK_MINUTES}-minute break every ${BREAK_EVERY_LEVELS} levels`}, and you sit through every hand you fold. The clock pauses when you leave or read the coach, and you can resume later.`
               : `Blinds go up every ${preset.config.handsPerLevel} hands and hands you've folded are skipped.`}</span>
           </div>
           {settings.pace === 'fast' && (
@@ -295,6 +296,7 @@ function TableView({ t, onLeave, onNew }: { t: Tournament; onLeave: () => void; 
               <Tile label={`Level ${t.levelIndex + 1}`} value={<span className="num">{compact(lvl.sb)}/{compact(lvl.bb)}</span>} sub={live ? `ante ${compact(lvl.ante)} · ${fmtClock(t.levelTimeLeftMs())} left` : `ante ${compact(lvl.ante)} · next in ${t.handsUntilLevel()}`} />
               <Tile label="Players" value={<span className="num">{t.playersLeft()}/{t.cfg.entrants}</span>} sub={t.cfg.satellite ? `${t.paid} seats` : `${t.paid} paid`} />
               <Tile label="Your stack" value={<span className="num">{(hero.stack / lvl.bb).toFixed(1)}bb</span>} sub={`rank ${t.heroRank()} · avg ${(t.avgStack() / lvl.bb).toFixed(0)}bb`} />
+              {t.cfg.mysteryBounty && <Tile label="Bounties won" value={<span className="num">{fmtMoney(hero.bounty ?? 0, t.cfg.currency)}</span>} sub={t.playersLeft() > t.paid ? 'they start on the bubble' : `${t.envelopes.length} envelopes left`} />}
             </div>
             <PayLadder t={t} />
           </div>
@@ -580,7 +582,7 @@ function OverlayView({ o, t, close, onLeave, onNew, nav, session }: {
         <h2>{r.seat ? `You won a seat in the ${t.cfg.satellite!.target}!` : !t.cfg.satellite && t.finished && r.place === 1 ? 'You won the tournament!' : `You finished ${ordinal(r.place)} of ${r.entrants}`}</h2>
         {t.cfg.satellite && <p className="small muted">{r.seat ? `You were one of the last ${t.paid} of ${r.entrants} players.` : `${t.paid} of ${r.entrants} players won seats.`}</p>}
         <div className="tiles">
-          <Tile label={r.seat ? 'Seat value' : 'Prize'} value={fmtMoney(r.prize, r.currency)} sub={`${profit >= 0 ? 'profit' : 'loss'} ${fmtMoney(profit, r.currency)}`} />
+          <Tile label={r.seat ? 'Seat value' : 'Prize'} value={fmtMoney(r.prize, r.currency)} sub={`${r.bounties ? `incl. ${fmtMoney(r.bounties, r.currency)} in bounties · ` : ''}${profit >= 0 ? 'profit' : 'loss'} ${fmtMoney(profit, r.currency)}`} />
           <Tile label="Hands" value={r.handsPlayed} sub={`reached ${STAGE_LABEL[r.stageReached].toLowerCase()}`} />
           <Tile label="Decisions" value={acc.scored ? `${Math.round(acc.pct)}%` : '–'} sub={`${acc.good}/${acc.scored} good or best`} />
         </div>

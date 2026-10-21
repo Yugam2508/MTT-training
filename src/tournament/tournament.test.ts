@@ -1,5 +1,5 @@
-import { Tournament, HERO_ID } from './tournament';
-import { PRESETS, type TournamentConfig } from './structure';
+import { Tournament, HERO_ID, mysteryEnvelopes } from './tournament';
+import { PRESETS, levelAt, stopsAfter, SPC_MAIN_SHEET, SPC_ROLLER_SHEET, SPC_BOUNTY_SHEET, isLevel, type TournamentConfig } from './structure';
 import { satellitePayouts } from '../theory/payouts';
 import { chooseBotAction } from '../bots/bot';
 import { PROFILES } from '../bots/profiles';
@@ -135,13 +135,14 @@ describe('tournament', () => {
     expect(bfAtSeatBubble('bubble')).toBeLessThanOrEqual(3);
   });
 
-  it('models the SPC Main Event: fee out of the pool, 27 paid, Day 2 start', () => {
+  it('models the SPC Main Event: fee and staffing cut out of the pool, 13% paid, Day 2 start', () => {
     const main = PRESETS.find((p) => p.key === 'spcmain')!;
     const t = new Tournament({ ...main.config, seed: 4 });
-    expect(t.paid).toBe(27);
-    expect(t.prizes.length).toBe(27);
-    expect(t.prizes.reduce((a, b) => a + b, 0)).toBeCloseTo(250 * 530, 2);
-    expect(t.prizes[0]).toBeGreaterThan(t.prizes[26] * 10);
+    expect(t.paid).toBe(33);
+    expect(t.prizes.length).toBe(33);
+    expect(t.prizes.reduce((a, b) => a + b, 0)).toBeCloseTo(250 * 570 * 0.96, 0);
+    expect(t.prizes[0]).toBeGreaterThan(t.prizes[32] * 10);
+    expect(t.level()).toEqual({ sb: 100, bb: 100, ante: 100 });
     const day2 = PRESETS.find((p) => p.key === 'spcday2')!;
     const cfg = { ...day2.config, seed: 8 };
     const d = new Tournament(cfg);
@@ -150,5 +151,54 @@ describe('tournament', () => {
     expect(d.alive().reduce((a, p) => a + p.stack, 0)).toBe(cfg.entrants * cfg.startingStack);
     const { rounds, maxMs } = playOut(cfg, 200);
     console.log(`SPC Day 2: ${d.playersLeft()} left at start; ${rounds} rounds, max round ${maxMs.toFixed(0)}ms`);
+  });
+
+  it('reads the SPC blind sheets: levels, breaks, day ends and levels past the end', () => {
+    expect(SPC_MAIN_SHEET.filter(isLevel).length).toBe(31);
+    expect(SPC_ROLLER_SHEET.filter(isLevel).length).toBe(27);
+    expect(SPC_BOUNTY_SHEET.filter(isLevel).length).toBe(18);
+    const main = { schedule: SPC_MAIN_SHEET };
+    expect(stopsAfter(main, 3)).toEqual([{ breakMin: 15, label: 'Break: 15 minutes' }]);
+    expect(stopsAfter(main, 7)[0].label).toContain('colour-up');
+    expect(stopsAfter(main, 11)).toEqual([{ breakMin: 0, label: 'End of Day 1' }]);
+    expect(stopsAfter(main, 4)).toEqual([]);
+    expect(levelAt(main, 30)).toEqual({ sb: 300000, bb: 600000, ante: 600000 });
+    expect(levelAt(main, 31).bb).toBeGreaterThan(600000);
+  });
+
+  it('runs SPC events on their own sheets with live breaks', () => {
+    const mini = PRESETS.find((p) => p.key === 'spcmini')!;
+    const t = new Tournament({ ...mini.config, pace: 'live', seed: 3 });
+    expect(t.level()).toEqual({ sb: 100, bb: 100, ante: 100 });
+    for (let k = 0; k < 3; k++) { t.tick(t.levelMs()); t.startRound(); if (t.current) { while (!t.current.done) { if (t.isHeroTurn()) t.heroAct(chooseBotAction(t.current, t.current.toAct, PROFILES.pro, t.botCtx(HERO_ID), t.rng)); else t.stepBot(); } t.finishRound(); } }
+    // after level 3 the Mini/High-Roller sheet breaks for 10 minutes
+    expect(t.levelIndex).toBe(3);
+    expect(t.onBreak()).toBe(true);
+    expect(t.breakLeftMs).toBe(10 * 60_000);
+  });
+
+  it('pays mystery bounties from the bubble, conserving the bounty pool', () => {
+    expect(mysteryEnvelopes(120, 90, 18).reduce((a, b) => a + b, 0)).toBe(120 * 90);
+    const mb = PRESETS.find((p) => p.key === 'spcbounty')!;
+    const cfg: TournamentConfig = { ...mb.config, start: 'bubble', heroStack: 'big', seed: 21 };
+    const t = new Tournament(cfg);
+    expect(t.prizes.reduce((a, b) => a + b, 0)).toBeCloseTo(120 * 310 * 0.96, 0);
+    const pool = 120 * 90;
+    const held = () => [...t.players.values()].reduce((a, p) => a + (p.bounty ?? 0), 0) + t.envelopes.reduce((a, b) => a + b, 0);
+    expect(held()).toBe(pool);
+    let rounds = 0;
+    while (!t.finished && !t.heroOut && rounds++ < 1500) {
+      const s = t.startRound();
+      if (!s) break;
+      while (!s.done) { if (t.isHeroTurn()) t.heroAct(chooseBotAction(s, s.toAct, PROFILES.pro, t.botCtx(HERO_ID), t.rng)); else t.stepBot(); }
+      t.finishRound();
+      expect(held()).toBe(pool);
+      for (const p of t.players.values()) if (p.busted && p.place > t.paid) expect(p.bounty ?? 0).toBe(0);
+    }
+    const won = [...t.players.values()].filter((p) => p.bounty).length;
+    expect(won).toBeGreaterThan(0);
+    const r = t.result();
+    expect(r.bounties).toBe(t.hero().bounty ?? 0);
+    expect(r.prize).toBeCloseTo(t.hero().prize + (r.bounties ?? 0), 2);
   });
 });

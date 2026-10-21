@@ -13,7 +13,7 @@ import { payoutStructure, paidPlaces, satellitePayouts } from '../theory/payouts
 import { positionOf } from '../theory/spot';
 import { POS_LABEL } from '../theory/positions';
 import { computeFlags, accumulate, emptyCounts, type HandFlags, type StatCounts } from '../analysis/handFlags';
-import { blindLevel, levelForDepth, stageOf, type Level, type Stage, type TournamentConfig } from './structure';
+import { levelAt, levelForDepth, stopsAfter, stageOf, type Level, type Stage, type TournamentConfig } from './structure';
 import { makeNames } from './names';
 import { levelMinutes, BREAK_EVERY_LEVELS, BREAK_MINUTES } from './pace';
 
@@ -27,6 +27,8 @@ export interface TPlayer {
   busted: boolean;
   place: number;
   prize: number;
+  /** Mystery bounties won. */
+  bounty?: number;
   isHero: boolean;
 }
 
@@ -86,14 +88,35 @@ export interface TournamentResult {
   currency?: string;
   /** Satellite result: true when the hero won a seat. */
   seat?: boolean;
+  /** Mystery bounties won (included in prize). */
+  bounties?: number;
 }
 
 export const HERO_ID = 'hero';
 
+/** What each entry adds to the place prizes: the buy-in less the fee, bounty share and costs cut. */
+function poolPerEntry(cfg: TournamentConfig): number {
+  return (cfg.buyIn - (cfg.fee ?? 0) - (cfg.mysteryBounty?.perEntry ?? 0)) * (1 - (cfg.poolCut ?? 0));
+}
+
 function prizesFor(cfg: TournamentConfig): number[] {
   const sat = cfg.satellite;
-  if (sat) return satellitePayouts(cfg.entrants, cfg.buyIn - (cfg.fee ?? 0), sat.seatValue, sat.guaranteedSeats);
-  return payoutStructure(cfg.entrants, cfg.buyIn - (cfg.fee ?? 0), cfg.paid);
+  if (sat) return satellitePayouts(cfg.entrants, poolPerEntry(cfg), sat.seatValue, sat.guaranteedSeats);
+  return payoutStructure(cfg.entrants, poolPerEntry(cfg), cfg.paid);
+}
+
+/**
+ * Mystery bounty envelopes, one per elimination in the money (paid - 1): a few big ones and many small,
+ * summing to the bounty pool. Shuffled when drawn.
+ */
+export function mysteryEnvelopes(entrants: number, perEntry: number, paid: number): number[] {
+  const pool = entrants * perEntry;
+  const n = Math.max(1, paid - 1);
+  const top = n >= 6 ? [0.25, 0.1, 0.05] : [];
+  const rest = (1 - top.reduce((a, b) => a + b, 0)) / (n - top.length);
+  const out = [...top, ...new Array(n - top.length).fill(rest)].map((f) => Math.round((pool * f) / 5) * 5);
+  out[out.length - 1] += pool - out.reduce((a, b) => a + b, 0);
+  return out;
 }
 
 /** Places paid. In a satellite this is the number of seats; a leftover cash prize is not counted. */
@@ -130,6 +153,7 @@ export interface TournamentSnapshot {
   breakLeftMs?: number;
   levelsSinceBreak?: number;
   playedMs?: number;
+  envelopes?: number[];
 }
 
 export class Tournament {
@@ -163,6 +187,8 @@ export class Tournament {
   breakLeftMs = 0;
   levelsSinceBreak = 0;
   playedMs = 0;
+  /** Mystery bounty envelopes not yet won. */
+  envelopes: number[] = [];
   private roundStartStacks = new Map<string, number>();
   private finalTableAnnounced = false;
 
@@ -172,6 +198,7 @@ export class Tournament {
     this.rng = makeRng(cfg.seed);
     this.prizes = prizesFor(cfg);
     this.paid = paidFor(cfg, this.prizes);
+    if (cfg.mysteryBounty) this.envelopes = shuffleInPlace(mysteryEnvelopes(cfg.entrants, cfg.mysteryBounty.perEntry, this.paid), this.rng);
     this.setupField(heroName);
     this.computeBubbleFactors();
   }
@@ -229,7 +256,7 @@ export class Tournament {
       const diff = totalChips - alive.reduce((a, id) => a + this.players.get(id)!.stack, 0);
       const biggest = alive.reduce((a, id) => (this.players.get(id)!.stack > this.players.get(a)!.stack ? id : a), alive[0]);
       this.players.get(biggest)!.stack += diff;
-      this.levelIndex = levelForDepth(avg, targetBB);
+      this.levelIndex = levelForDepth(avg, targetBB, this.cfg);
     }
     // seat players
     const alive = shuffleInPlace(ids.filter((id) => !this.players.get(id)!.busted), this.rng);
@@ -257,7 +284,7 @@ export class Tournament {
 
   // ---------- queries ----------
 
-  level(): Level { return blindLevel(this.levelIndex); }
+  level(): Level { return levelAt(this.cfg, this.levelIndex); }
   money(x: number, digits = 2) { return `${this.cfg.currency ?? '$'}${x.toFixed(digits)}`; }
   fmtLevel(l: Level) { return `${l.sb.toLocaleString()}/${l.bb.toLocaleString()} ante ${l.ante.toLocaleString()}`; }
   alive(): TPlayer[] { return [...this.players.values()].filter((p) => !p.busted); }
@@ -293,10 +320,21 @@ export class Tournament {
   private applyClock() {
     while (this.breakLeftMs === 0 && this.levelElapsedMs >= this.levelMs()) {
       this.levelElapsedMs -= this.levelMs();
+      const stops = stopsAfter(this.cfg, this.levelIndex);
       this.levelIndex++;
       this.roundsAtLevel = 0;
       this.levelsSinceBreak++;
-      if (this.levelsSinceBreak >= BREAK_EVERY_LEVELS) {
+      if (this.cfg.schedule) {
+        // the event's own sheet: its breaks, and day ends announced without stopping the session
+        const brk = stops.find((x) => x.breakMin > 0);
+        stops.filter((x) => x.breakMin === 0).forEach((x) => this.pushEvent('level', `${x.label}. Play continues straight into Day 2 here.`));
+        if (brk) {
+          this.breakLeftMs = brk.breakMin * 60_000;
+          this.pushEvent('level', `${brk.label}. Play resumes at ${this.fmtLevel(this.level())}.`);
+        } else {
+          this.pushEvent('level', `Blinds up: ${this.fmtLevel(this.level())}`);
+        }
+      } else if (this.levelsSinceBreak >= BREAK_EVERY_LEVELS) {
         this.levelsSinceBreak = 0;
         this.breakLeftMs = BREAK_MINUTES * 60_000;
         this.pushEvent('level', `Break: ${BREAK_MINUTES} minutes. Play resumes at ${this.fmtLevel(this.level())}.`);
@@ -530,6 +568,7 @@ export class Tournament {
       p.busted = true;
       p.place = before - busted.length + 1 + k;
       p.prize = this.prizes[p.place - 1] ?? 0;
+      if (p.place <= this.paid && this.envelopes.length) this.awardBounty(p);
       const t = this.tables.find((x) => x.id === p.tableId);
       if (t) t.seats[p.seat] = null;
       if (p.isHero) {
@@ -553,9 +592,24 @@ export class Tournament {
       const w = this.alive()[0];
       w.place = 1;
       w.prize = this.prizes[0];
+      if (this.envelopes.length) w.bounty = (w.bounty ?? 0) + this.envelopes.splice(0).reduce((a, b) => a + b, 0);
       this.finished = true;
       this.pushEvent('win', w.isHero ? `You won the tournament! ${this.money(w.prize)}` : `${w.name} wins the tournament.`);
     }
+  }
+
+  /** Mystery bounty: the player who won the most chips from the busted player's table this round draws an envelope. */
+  private awardBounty(out: TPlayer) {
+    const winner = this.alive().filter((q) => q.tableId === out.tableId)
+      .reduce<TPlayer | null>((best, q) => {
+        const gain = q.stack - (this.roundStartStacks.get(q.id) ?? q.stack);
+        return gain > 0 && (!best || gain > best.stack - (this.roundStartStacks.get(best.id) ?? best.stack)) ? q : best;
+      }, null);
+    if (!winner) return;
+    const value = this.envelopes.pop()!;
+    winner.bounty = (winner.bounty ?? 0) + value;
+    if (winner.isHero) this.pushEvent('win', `You knocked out ${out.name} and opened a mystery bounty: ${this.money(value, 0)}!`);
+    else if (value >= this.cfg.mysteryBounty!.perEntry * this.cfg.entrants * 0.1) this.pushEvent('info', `${winner.name} knocked out ${out.name} and opened a ${this.money(value, 0)} mystery bounty.`);
   }
 
   /** Everyone still in has a seat, so the satellite stops. Places among seat winners follow stack size. */
@@ -671,6 +725,7 @@ export class Tournament {
       breakLeftMs: this.breakLeftMs,
       levelsSinceBreak: this.levelsSinceBreak,
       playedMs: this.playedMs,
+      envelopes: this.envelopes,
     };
   }
 
@@ -706,6 +761,7 @@ export class Tournament {
     t.breakLeftMs = snap.breakLeftMs ?? 0;
     t.levelsSinceBreak = snap.levelsSinceBreak ?? 0;
     t.playedMs = snap.playedMs ?? 0;
+    t.envelopes = snap.envelopes ?? [];
     return t;
   }
 
@@ -718,13 +774,14 @@ export class Tournament {
       entrants: this.cfg.entrants,
       buyIn: this.cfg.buyIn,
       place: h.place > 0 ? h.place : this.heroRank(),
-      prize: h.prize,
+      prize: h.prize + (h.bounty ?? 0),
       handsPlayed: this.heroHands,
       stageReached: this.stageReached,
       start: this.cfg.start,
       field: this.cfg.field,
       ...(this.cfg.currency ? { currency: this.cfg.currency } : {}),
       ...(this.cfg.satellite ? { seat: h.prize === this.cfg.satellite.seatValue } : {}),
+      ...(this.cfg.mysteryBounty ? { bounties: h.bounty ?? 0 } : {}),
     };
   }
 }
