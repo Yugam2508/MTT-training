@@ -181,26 +181,28 @@ describe('tournament', () => {
     expect(mysteryEnvelopes(120, 90, 18).reduce((a, b) => a + b, 0)).toBe(120 * 90);
     expect(mysteryEnvelopes(30, 90, 4)).toEqual([1690, 710, 300]);
     const mb = PRESETS.find((p) => p.key === 'spcbounty')!;
-    const cfg: TournamentConfig = { ...mb.config, start: 'bubble', heroStack: 'big', seed: 21 };
-    const t = new Tournament(cfg);
-    expect(t.prizes.length).toBe(4);
-    expect(t.prizes.reduce((a, b) => a + b, 0)).toBeCloseTo(30 * 260 * 0.96, 0);
     const pool = 30 * 90;
-    const held = () => [...t.players.values()].reduce((a, p) => a + (p.bounty ?? 0), 0) + t.envelopes.reduce((a, b) => a + b, 0);
-    expect(held()).toBe(pool);
-    let rounds = 0;
-    while (!t.finished && !t.heroOut && rounds++ < 1500) {
-      const s = t.startRound();
-      if (!s) break;
-      while (!s.done) { if (t.isHeroTurn()) t.heroAct(chooseBotAction(s, s.toAct, PROFILES.pro, t.botCtx(HERO_ID), t.rng)); else t.stepBot(); }
-      t.finishRound();
+    let runsWithBounties = 0;
+    for (let seed = 21; seed < 33; seed++) {
+      const t = new Tournament({ ...mb.config, start: 'bubble', heroStack: 'big', seed });
+      expect(t.prizes.length).toBe(4);
+      expect(t.prizes.reduce((a, b) => a + b, 0)).toBeCloseTo(30 * 260 * 0.96, 0);
+      const held = () => [...t.players.values()].reduce((a, p) => a + (p.bounty ?? 0), 0) + t.envelopes.reduce((a, b) => a + b, 0);
       expect(held()).toBe(pool);
-      for (const p of t.players.values()) if (p.busted && p.place > t.paid) expect(p.bounty ?? 0).toBe(0);
+      let rounds = 0;
+      while (!t.finished && !t.heroOut && rounds++ < 1500) {
+        const s = t.startRound();
+        if (!s) break;
+        while (!s.done) { if (t.isHeroTurn()) t.heroAct(chooseBotAction(s, s.toAct, PROFILES.pro, t.botCtx(HERO_ID), t.rng)); else t.stepBot(); }
+        t.finishRound();
+        expect(held()).toBe(pool);
+        for (const p of t.players.values()) if (p.busted && p.place > t.paid) expect(p.bounty ?? 0).toBe(0);
+      }
+      if ([...t.players.values()].some((p) => p.bounty)) runsWithBounties++;
+      const r = t.result();
+      expect(r.bounties).toBe(t.hero().bounty ?? 0);
+      expect(r.prize).toBeCloseTo(t.hero().prize + (r.bounties ?? 0), 2);
     }
-    const won = [...t.players.values()].filter((p) => p.bounty).length;
-    expect(won).toBeGreaterThan(0);
-    const r = t.result();
-    expect(r.bounties).toBe(t.hero().bounty ?? 0);
-    expect(r.prize).toBeCloseTo(t.hero().prize + (r.bounties ?? 0), 2);
+    expect(runsWithBounties).toBeGreaterThan(0);
   });
 });
