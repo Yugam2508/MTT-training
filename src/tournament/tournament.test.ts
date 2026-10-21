@@ -179,11 +179,13 @@ describe('tournament', () => {
 
   it('pays mystery bounties from the bubble, conserving the bounty pool', () => {
     expect(mysteryEnvelopes(120, 90, 18).reduce((a, b) => a + b, 0)).toBe(120 * 90);
+    expect(mysteryEnvelopes(30, 90, 4)).toEqual([1690, 710, 300]);
     const mb = PRESETS.find((p) => p.key === 'spcbounty')!;
     const cfg: TournamentConfig = { ...mb.config, start: 'bubble', heroStack: 'big', seed: 21 };
     const t = new Tournament(cfg);
-    expect(t.prizes.reduce((a, b) => a + b, 0)).toBeCloseTo(120 * 310 * 0.96, 0);
-    const pool = 120 * 90;
+    expect(t.prizes.length).toBe(4);
+    expect(t.prizes.reduce((a, b) => a + b, 0)).toBeCloseTo(30 * 260 * 0.96, 0);
+    const pool = 30 * 90;
     const held = () => [...t.players.values()].reduce((a, p) => a + (p.bounty ?? 0), 0) + t.envelopes.reduce((a, b) => a + b, 0);
     expect(held()).toBe(pool);
     let rounds = 0;

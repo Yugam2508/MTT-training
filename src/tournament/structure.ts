@@ -163,22 +163,23 @@ const SPC_MAIN: Omit<TournamentConfig, 'seed' | 'start' | 'heroStack'> = {
 };
 
 /**
- * SPC Mini-Roller: 30,000 chips, 40-minute levels (about 17 live hands), the shared Mini/High-Roller sheet.
- * The buy-in (S$1,000, S$30,000 guaranteed) is the last published one; the next schedule isn't out yet.
- * The field size is an assumption.
+ * SPC Mini-Roller: S$1,000, 30,000 chips, 40-minute levels (about 17 live hands), the shared Mini/High-Roller
+ * sheet. Recent fields: 51, 60 and 40 entries with 6, 7 and 5 paid; the payouts match about S$100 of each
+ * buy-in going to the fee before the 4% cut.
  */
 const SPC_MINI: Omit<TournamentConfig, 'seed' | 'start' | 'heroStack'> = {
-  name: 'SPC Mini-Roller', entrants: 45, tableSize: 9, startingStack: 30000, handsPerLevel: 17, levelMinutes: 40,
-  buyIn: 1000, poolCut: 0.04, currency: 'S$', field: 'tough', schedule: SPC_ROLLER_SHEET,
+  name: 'SPC Mini-Roller', entrants: 50, tableSize: 9, startingStack: 30000, handsPerLevel: 17, levelMinutes: 40,
+  buyIn: 1000, fee: 100, poolCut: 0.04, paid: 6, currency: 'S$', field: 'tough', schedule: SPC_ROLLER_SHEET,
 };
 
 /**
- * SPC Mystery Bounty: 15,000 chips, 20-minute levels (about 9 live hands), S$90 of each buy-in to mystery
- * bounties that start on the bubble. Buy-in S$400 as last published; field size is an assumption.
+ * SPC Mystery Bounty: S$400, 15,000 chips, 20-minute levels (about 9 live hands), S$90 of each buy-in to
+ * mystery bounties that start on the bubble. Recent fields: 29 and 30 entries, 4 paid (S$3,200-3,300 for 1st,
+ * S$800-900 for 4th); the payouts match about S$50 of each buy-in going to the fee before the 4% cut.
  */
 const SPC_BOUNTY: Omit<TournamentConfig, 'seed' | 'start' | 'heroStack'> = {
-  name: 'SPC Mystery Bounty', entrants: 120, tableSize: 9, startingStack: 15000, handsPerLevel: 9, levelMinutes: 20,
-  buyIn: 400, poolCut: 0.04, currency: 'S$', field: 'mixed', schedule: SPC_BOUNTY_SHEET, mysteryBounty: { perEntry: 90 },
+  name: 'SPC Mystery Bounty', entrants: 30, tableSize: 9, startingStack: 15000, handsPerLevel: 9, levelMinutes: 20,
+  buyIn: 400, fee: 50, poolCut: 0.04, paid: 4, currency: 'S$', field: 'mixed', schedule: SPC_BOUNTY_SHEET, mysteryBounty: { perEntry: 90 },
 };
 
 export const PRESETS: Preset[] = [
@@ -234,12 +235,12 @@ export const PRESETS: Preset[] = [
   },
   {
     key: 'spcmini', label: 'SPC Mini-Roller',
-    blurb: 'S$1,000 Mini-Roller on the shared Mini/High-Roller sheet: 30,000 chips (300bb), 40-minute levels, a smaller and tougher field.',
+    blurb: 'S$1,000 Mini-Roller on the shared Mini/High-Roller sheet: about 50 entries, 6 paid, 30,000 chips (300bb), 40-minute levels and a tougher field.',
     config: { ...SPC_MINI, start: 'beginning', heroStack: 'average' },
   },
   {
     key: 'spcbounty', label: 'SPC Mystery Bounty',
-    blurb: 'S$400 Mystery Bounty: 15,000 chips, fast 20-minute levels. From the bubble on, every knockout wins a random bounty from a S$90-per-entry pool.',
+    blurb: 'S$400 Mystery Bounty: about 30 entries, 4 paid, 15,000 chips, fast 20-minute levels. From the bubble on, every knockout wins a random bounty from a S$90-per-entry pool.',
     config: { ...SPC_BOUNTY, start: 'beginning', heroStack: 'average' },
   },
 ];

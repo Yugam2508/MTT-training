@@ -106,15 +106,23 @@ function prizesFor(cfg: TournamentConfig): number[] {
 }
 
 /**
- * Mystery bounty envelopes, one per elimination in the money (paid - 1): a few big ones and many small,
+ * Mystery bounty envelopes, one per elimination in the money (paid - 1), largest first,
  * summing to the bounty pool. Shuffled when drawn.
  */
 export function mysteryEnvelopes(entrants: number, perEntry: number, paid: number): number[] {
   const pool = entrants * perEntry;
   const n = Math.max(1, paid - 1);
-  const top = n >= 6 ? [0.25, 0.1, 0.05] : [];
-  const rest = (1 - top.reduce((a, b) => a + b, 0)) / (n - top.length);
-  const out = [...top, ...new Array(n - top.length).fill(rest)].map((f) => Math.round((pool * f) / 5) * 5);
+  // small fields (SPC: 3 envelopes of about 63/26/11%) fall away steeply; big ones have a few big prizes
+  let shares: number[];
+  if (n < 6) {
+    const w = Array.from({ length: n }, (_, k) => Math.pow(0.42, k));
+    const sum = w.reduce((a, b) => a + b, 0);
+    shares = w.map((x) => x / sum);
+  } else {
+    const top = [0.25, 0.1, 0.05];
+    shares = [...top, ...new Array(n - 3).fill(0.6 / (n - 3))];
+  }
+  const out = shares.map((f) => Math.round((pool * f) / 5) * 5);
   out[out.length - 1] += pool - out.reduce((a, b) => a + b, 0);
   return out;
 }
