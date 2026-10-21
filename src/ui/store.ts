@@ -241,6 +241,11 @@ function addFlags(agg: AggStats, f: HandFlags, stage: Stage): AggStats {
   return { all, byStage: { ...agg.byStage, [stage]: st }, rfi };
 }
 
+/** Stat counters rebuilt from stored hands (for a filtered view; the running totals cover every hand). */
+export function aggFromHands(hands: HandRecord[]): AggStats {
+  return hands.reduce((a, h) => addFlags(a, h.flags, h.stage), emptyAgg());
+}
+
 export function recordResult(r: TournamentResult) {
   update((d) => { d.results = [...d.results.filter((x) => x.id !== r.id), r]; });
 }

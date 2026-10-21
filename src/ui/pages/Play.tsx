@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Tournament, HERO_ID, ordinal, type TEvent } from '../../tournament/tournament';
-import { PRESETS, STAGE_LABEL, type Preset, type HeroStackOption } from '../../tournament/structure';
+import { PRESETS, STAGE_LABEL, EVENT_LABEL, EVENT_ORDER, type EventType, type Preset, type HeroStackOption } from '../../tournament/structure';
 import { FIELD_MIXES, PROFILES, type FieldMix, type ProfileKey } from '../../bots/profiles';
 import { type PlayerAction, legalActions, potSize, STREET_NAMES } from '../../engine/hand';
 import { randomSeed } from '../../engine/rng';
@@ -25,9 +25,29 @@ export function PlayPage({ preset }: { preset?: string }) {
 
 // ---------------------------------------------------------------------------
 
+const MODE_KEY = 'mtt-coach-play-mode';
+const MODES = EVENT_ORDER.filter((e) => PRESETS.some((p) => p.config.event === e));
+
+function readMode(): EventType | 'all' {
+  try {
+    const v = localStorage.getItem(MODE_KEY);
+    return v && (MODES as string[]).includes(v) ? (v as EventType) : 'all';
+  } catch { return 'all'; }
+}
+
 function Setup({ onStart, initial }: { onStart: (t: Tournament) => void; initial?: string }) {
   const { settings } = useData();
-  const [preset, setPreset] = useState<Preset>(PRESETS.find((p) => p.key === initial) ?? PRESETS[1]);
+  const initialPreset = PRESETS.find((p) => p.key === initial);
+  const [mode, setModeState] = useState<EventType | 'all'>(() => (initialPreset ? 'all' : readMode()));
+  const shown = mode === 'all' ? PRESETS : PRESETS.filter((p) => p.config.event === mode);
+  const [preset, setPreset] = useState<Preset>(initialPreset ?? (mode === 'all' ? PRESETS[1] : shown[0]));
+  const pick = (p: Preset) => { setPreset(p); setField(p.config.field); setHeroStack(p.config.heroStack); };
+  const setMode = (m: EventType | 'all') => {
+    setModeState(m);
+    try { localStorage.setItem(MODE_KEY, m); } catch { /* ignore */ }
+    const list = m === 'all' ? PRESETS : PRESETS.filter((p) => p.config.event === m);
+    if (!list.includes(preset)) pick(list[0]);
+  };
   const [field, setField] = useState<FieldMix>(preset.config.field);
   const [heroStack, setHeroStack] = useState<HeroStackOption>(preset.config.heroStack);
   const scenario = preset.config.start !== 'beginning';
@@ -43,9 +63,14 @@ function Setup({ onStart, initial }: { onStart: (t: Tournament) => void; initial
           <p>Full multi-table fields with rising blinds, table breaks, a real bubble and a final table. Every other table plays its hands in the background while you play yours.</p>
         </div>
       </div>
+      <div className="stack">
+        <span className="label">Mode</span>
+        <Seg value={mode} onChange={setMode} options={[{ v: 'all' as const, label: 'All' }, ...MODES.map((m) => ({ v: m, label: EVENT_LABEL[m] }))]} label="Mode" />
+        {mode === 'mini' && <span className="small muted">Mini-Roller mode: the S$1,000 SPC Mini-Roller from the start, from Day 2, on the bubble and at the final table. Every hand is tagged Mini-Roller, so Analyze can show these stats on their own.</span>}
+      </div>
       <div className="grid cols-3">
-        {PRESETS.map((p) => (
-          <button key={p.key} className={`panel preset ${preset.key === p.key ? 'sel' : ''}`} onClick={() => { setPreset(p); setField(p.config.field); setHeroStack(p.config.heroStack); }}>
+        {shown.map((p) => (
+          <button key={p.key} className={`panel preset ${preset.key === p.key ? 'sel' : ''}`} onClick={() => pick(p)}>
             <div className="spread">
               <h3 style={{ margin: 0 }}>{p.label}</h3>
               <span className="pill">{p.config.start === 'beginning' ? 'Full MTT' : 'Scenario'}</span>

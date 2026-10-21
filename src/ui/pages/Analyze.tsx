@@ -1,24 +1,84 @@
-import { useMemo, useState } from 'react';
+import { createContext, useCallback, useContext, useMemo, useState } from 'react';
 import { replay, STREET_NAMES } from '../../engine/hand';
 import { cardsToString } from '../../engine/cards';
 import { statRows, decisionLeaks, accuracyBy, overallAccuracy, STAGE_ORDER, LEAKS } from '../../analysis/leaks';
 import { rfiRange } from '../../theory/charts';
 import { POS_LABEL, type ChartPos } from '../../theory/positions';
 import { rangePercent } from '../../engine/ranges';
-import { STAGE_LABEL, type Stage } from '../../tournament/structure';
+import { STAGE_LABEL, EVENT_LABEL, EVENT_ORDER, eventOfName, type EventType, type Stage } from '../../tournament/structure';
 import { KIND_LABEL, catLabel, type Grade } from '../../coach/coach';
 import { lessonById } from '../../content/lessons';
 import { drillById } from '../../drills/drills';
 import { PROFILES, type ProfileKey } from '../../bots/profiles';
-import type { HandRecord } from '../../tournament/tournament';
+import type { HandRecord, TournamentResult } from '../../tournament/tournament';
 import type { DecisionRecord } from '../../coach/session';
-import { useData } from '../store';
+import { useData, aggFromHands, type AggStats } from '../store';
 import { useNav } from '../nav';
 import { Felt } from '../components/Felt';
 import { Cards, GradeBadge, Seg, Tile, fmtMoney, fmtPct, fmtBBs } from '../components/common';
 import { BarList, GradeBar, LineChart } from '../components/charts';
 
 type Tab = 'overview' | 'leaks' | 'mistakes' | 'hands' | 'results';
+
+/** The records Analyze shows: everything, or one kind of event. */
+interface Scope {
+  hands: HandRecord[];
+  decisions: DecisionRecord[];
+  results: TournamentResult[];
+  agg: AggStats;
+  event: EventType | 'all';
+  /** One row per kind of event played, for the all-events view. */
+  summary: EventRow[];
+  setEvent: (e: EventType | 'all') => void;
+}
+
+interface EventRow { event: EventType; tournaments: number; itm: number; roi: number; avgFinish: number; scored: number; acc: number; bad: number }
+
+const ScopeCtx = createContext<Scope | null>(null);
+const useScope = () => useContext(ScopeCtx)!;
+const EVENT_KEY = 'mtt-coach-analyze-event';
+
+function readEvent(): EventType | 'all' {
+  try {
+    const v = localStorage.getItem(EVENT_KEY);
+    return v && v in EVENT_LABEL ? (v as EventType) : 'all';
+  } catch { return 'all'; }
+}
+
+function useEventScope(event: EventType | 'all', setEvent: (e: EventType | 'all') => void): { scope: Scope; present: EventType[] } {
+  const { hands, decisions, results, agg } = useData();
+  return useMemo(() => {
+    // records saved before they carried an event type fall back to their tournament's name
+    const byTid = new Map<string, EventType>();
+    results.forEach((r) => byTid.set(r.id, r.event ?? eventOfName(r.name)));
+    hands.forEach((h) => { if (h.event) byTid.set(h.tid, h.event); });
+    const evOf = (x: { tid: string; event?: EventType }): EventType => x.event ?? byTid.get(x.tid) ?? 'mtt';
+    const resOf = (r: TournamentResult): EventType => r.event ?? eventOfName(r.name);
+    const seen = new Set<EventType>([...hands.map(evOf), ...decisions.map(evOf), ...results.map(resOf)]);
+    const present = EVENT_ORDER.filter((e) => seen.has(e));
+    const summary: EventRow[] = present.map((e) => {
+      const rs = results.filter((r) => resOf(r) === e);
+      const ds = decisions.filter((d) => evOf(d) === e && d.grade !== 'unscored');
+      const cost = rs.reduce((a, r) => a + r.buyIn, 0);
+      return {
+        event: e,
+        tournaments: rs.length,
+        itm: rs.length ? (100 * rs.filter((r) => r.prize > 0).length) / rs.length : NaN,
+        roi: cost ? (100 * rs.reduce((a, r) => a + r.prize - r.buyIn, 0)) / cost : NaN,
+        avgFinish: rs.length ? (100 * rs.reduce((a, r) => a + r.place / r.entrants, 0)) / rs.length : NaN,
+        scored: ds.length,
+        acc: ds.length ? (100 * ds.filter((d) => d.grade === 'best' || d.grade === 'good').length) / ds.length : NaN,
+        bad: ds.length ? (100 * ds.filter((d) => d.grade === 'mistake' || d.grade === 'blunder').length) / ds.length : NaN,
+      };
+    });
+    if (event === 'all') return { scope: { hands, decisions, results, agg, event, summary, setEvent }, present };
+    const h = hands.filter((x) => evOf(x) === event);
+    return {
+      scope: { hands: h, decisions: decisions.filter((x) => evOf(x) === event), results: results.filter((r) => resOf(r) === event), agg: aggFromHands(h), event, summary, setEvent },
+      present,
+    };
+  }, [hands, decisions, results, agg, event, setEvent]);
+}
 
 export function AnalyzePage({ tab, hand, move }: { tab?: string; hand?: string; move?: number }) {
   const nav = useNav();
@@ -28,7 +88,11 @@ export function AnalyzePage({ tab, hand, move }: { tab?: string; hand?: string; 
     const rec = data.hands.find((h) => h.id === hand);
     if (rec) return <HandReplay rec={rec} decisions={data.decisions.filter((d) => d.handId === hand)} startMove={move} onBack={() => nav({ page: 'analyze', tab: t })} />;
   }
+  const [event, setEventState] = useState<EventType | 'all'>(readEvent);
+  const setEvent = useCallback((e: EventType | 'all') => { setEventState(e); try { localStorage.setItem(EVENT_KEY, e); } catch { /* ignore */ } }, []);
+  const { scope, present } = useEventScope(event, setEvent);
   const empty = data.hands.length === 0 && data.results.length === 0;
+  const scopeEmpty = scope.hands.length === 0 && scope.results.length === 0 && scope.decisions.length === 0;
   return (
     <div className="page">
       <div className="page-head">
@@ -40,18 +104,62 @@ export function AnalyzePage({ tab, hand, move }: { tab?: string; hand?: string; 
           { v: 'overview', label: 'Overview' }, { v: 'leaks', label: 'Leaks' }, { v: 'mistakes', label: 'Mistakes' }, { v: 'hands', label: 'Hands' }, { v: 'results', label: 'Results' },
         ]} label="Analyze sections" />
       </div>
+      {!empty && (present.length > 1 || event !== 'all') && (
+        <div className="row">
+          <span className="label">Event type</span>
+          <Seg value={event} onChange={setEvent} options={[{ v: 'all' as const, label: 'All events' }, ...EVENT_ORDER.filter((e) => present.includes(e) || e === event).map((e) => ({ v: e, label: EVENT_LABEL[e] }))]} label="Event type" />
+        </div>
+      )}
+      {!empty && event !== 'all' && <p className="small muted">Showing {EVENT_LABEL[event]} only: {scope.results.length} tournament{scope.results.length === 1 ? '' : 's'}, {scope.hands.length} stored hands and {scope.decisions.length} graded decisions. Stats come from your stored hands (the last 700 across all events).</p>}
       {empty ? (
         <div className="empty stack">
           <p>No hands yet. Play a tournament or a scenario and your stats, leaks and mistakes will appear here.</p>
           <div><button className="btn primary" onClick={() => nav({ page: 'play' })}>Play a tournament</button></div>
         </div>
-      ) : t === 'overview' ? <Overview /> : t === 'leaks' ? <Leaks /> : t === 'mistakes' ? <Mistakes /> : t === 'hands' ? <Hands /> : <Results />}
+      ) : scopeEmpty ? (
+        <div className="empty stack">
+          <p>No {event === 'all' ? '' : EVENT_LABEL[event]} hands yet.</p>
+          <div><button className="btn" onClick={() => setEvent('all')}>Show all events</button></div>
+        </div>
+      ) : (
+        <ScopeCtx.Provider value={scope}>
+          {t === 'overview' ? <Overview /> : t === 'leaks' ? <Leaks /> : t === 'mistakes' ? <Mistakes /> : t === 'hands' ? <Hands /> : <Results />}
+        </ScopeCtx.Provider>
+      )}
+    </div>
+  );
+}
+
+function EventTable() {
+  const { summary, setEvent } = useScope();
+  const f = (x: number, d = 0) => (Number.isFinite(x) ? `${x.toFixed(d)}%` : '–');
+  return (
+    <div className="panel table-wrap">
+      <h3>By event type</h3>
+      <table className="data">
+        <thead><tr><th>Event type</th><th>Tournaments</th><th>In the money</th><th>ROI</th><th>Avg finish</th><th>Decisions</th><th>Accuracy</th><th>Mistakes + blunders</th></tr></thead>
+        <tbody>
+          {summary.map((r) => (
+            <tr key={r.event} className="clickable" onClick={() => setEvent(r.event)} title={`Show ${EVENT_LABEL[r.event]} only`}>
+              <td>{EVENT_LABEL[r.event]}</td>
+              <td className="num">{r.tournaments}</td>
+              <td className="num">{f(r.itm)}</td>
+              <td className="num" style={{ color: r.roi > 0 ? 'var(--g-best)' : undefined }}>{f(r.roi)}</td>
+              <td className="num">{Number.isFinite(r.avgFinish) ? `top ${r.avgFinish.toFixed(0)}%` : '–'}</td>
+              <td className="num">{r.scored}</td>
+              <td className="num">{f(r.acc)}</td>
+              <td className="num">{f(r.bad, 1)}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+      <p className="small muted">Click a row to see that event type on its own. Scenario starts count their finish from where they began.</p>
     </div>
   );
 }
 
 function Overview() {
-  const { agg, decisions, results } = useData();
+  const { agg, decisions, results, event, summary } = useScope();
   const rows = statRows(agg.all);
   const acc = overallAccuracy(decisions);
   const grades: Partial<Record<Grade, number>> = {};
@@ -64,11 +172,12 @@ function Overview() {
   const positions: ChartPos[] = ['UTG', 'UTG1', 'UTG2', 'LJ', 'HJ', 'CO', 'BTN', 'SB'];
   return (
     <>
+      {event === 'all' && summary.length > 1 && <EventTable />}
       <div className="grid cols-4">
         <div className="panel"><Tile label="Hands" value={agg.all.hands.toLocaleString()} sub={`${fmtBBs(agg.all.netBB)} total`} /></div>
         <div className="panel"><Tile label="Decision accuracy" value={fmtPct(acc.pct)} sub={`${acc.good} of ${acc.scored} graded decisions`} /></div>
         <div className="panel"><Tile label="Tournaments" value={results.length} sub={`${results.length ? Math.round((100 * itm) / results.length) : 0}% in the money`} /></div>
-        <div className="panel"><Tile label="ROI" value={buyins ? fmtPct((100 * profit) / buyins) : '–'} sub={`${fmtMoney(profit)} profit`} /></div>
+        <div className="panel"><Tile label="ROI" value={buyins ? fmtPct((100 * profit) / buyins) : '–'} sub={`${fmtMoney(profit, new Set(results.map((r) => r.currency)).size === 1 ? results[0].currency : undefined)} profit`} /></div>
       </div>
       <div className="grid cols-2" style={{ alignItems: 'start' }}>
         <div className="panel stack">
@@ -135,7 +244,7 @@ function Overview() {
 }
 
 function Leaks() {
-  const { decisions, agg } = useData();
+  const { decisions, agg } = useScope();
   const nav = useNav();
   const leaks = decisionLeaks(decisions);
   const statLeaks = statRows(agg.all).filter((r) => r.status === 'low' || r.status === 'high');
@@ -178,7 +287,7 @@ function Leaks() {
 }
 
 function Mistakes() {
-  const { decisions } = useData();
+  const { decisions } = useScope();
   const nav = useNav();
   const [street, setStreet] = useState<'all' | 'pre' | 'post'>('all');
   const [sort, setSort] = useState<'recent' | 'cost'>('recent');
@@ -223,7 +332,7 @@ function Mistakes() {
 }
 
 function Hands() {
-  const { hands, decisions } = useData();
+  const { hands, decisions } = useScope();
   const nav = useNav();
   const [filter, setFilter] = useState<'all' | 'big' | 'graded'>('all');
   const gradedIds = useMemo(() => new Set(decisions.filter((d) => d.grade !== 'best' && d.grade !== 'good').map((d) => d.handId)), [decisions]);
@@ -259,7 +368,7 @@ function Hands() {
 }
 
 function Results() {
-  const { results } = useData();
+  const { results } = useScope();
   if (!results.length) return <div className="empty">Finish a tournament to see results here.</div>;
   const sorted = results.slice().sort((a, b) => a.ts - b.ts);
   let cum = 0;

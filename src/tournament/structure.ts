@@ -81,6 +81,25 @@ export function levelForDepth(avgStack: number, targetBB: number, cfg?: Pick<Tou
   return best;
 }
 
+/** Kind of event, for grouping presets and splitting stats. */
+export type EventType = 'mtt' | 'scenario' | 'spcmain' | 'satellite' | 'mini' | 'bounty';
+
+export const EVENT_LABEL: Record<EventType, string> = {
+  mtt: 'Online-style MTTs', scenario: 'Stage trainers', spcmain: 'SPC Main Event', satellite: 'SPC Satellite', mini: 'Mini-Roller', bounty: 'Mystery Bounty',
+};
+
+export const EVENT_ORDER: EventType[] = ['mini', 'spcmain', 'satellite', 'bounty', 'mtt', 'scenario'];
+
+/** Event type of a tournament by name, for records saved before configs carried one. */
+export function eventOfName(name: string): EventType {
+  if (/Mini-Roller/i.test(name)) return 'mini';
+  if (/Mystery Bounty/i.test(name)) return 'bounty';
+  if (/Satellite/i.test(name)) return 'satellite';
+  if (/SPC Main/i.test(name)) return 'spcmain';
+  if (/Grind|Trainer/i.test(name)) return 'scenario';
+  return 'mtt';
+}
+
 export type StartPoint = 'beginning' | 'middle' | 'bubble' | 'final';
 export type HeroStackOption = 'random' | 'short' | 'average' | 'big';
 
@@ -111,6 +130,8 @@ export interface TournamentConfig {
   /** Satellite: the prizes are equal seats, and play stops once every remaining player has one. */
   satellite?: { seatValue: number; guaranteedSeats: number; /** The event the seats are for. */ target: string };
   field: FieldMix;
+  /** Kind of event, for grouping presets and splitting stats. */
+  event?: EventType;
   start: StartPoint;
   heroStack: HeroStackOption;
   seed: number;
@@ -130,7 +151,7 @@ export interface Preset {
  */
 const SPC_SATELLITE: Omit<TournamentConfig, 'seed' | 'start' | 'heroStack'> = {
   name: 'SPC Main Event Satellite', entrants: 100, tableSize: 9, startingStack: 5000, handsPerLevel: 8, levelMinutes: 20,
-  buyIn: 60, currency: 'S$', satellite: { seatValue: 600, guaranteedSeats: 10, target: 'SPC Main Event' }, field: 'soft',
+  buyIn: 60, currency: 'S$', event: 'satellite', satellite: { seatValue: 600, guaranteedSeats: 10, target: 'SPC Main Event' }, field: 'soft',
 };
 
 /** SPC blind sheets, from sgpokerchamps.com/event-structures (October 2026). */
@@ -159,7 +180,7 @@ export const SPC_BOUNTY_SHEET = sheet([
  */
 const SPC_MAIN: Omit<TournamentConfig, 'seed' | 'start' | 'heroStack'> = {
   name: 'SPC Main Event', entrants: 250, tableSize: 9, startingStack: 25000, handsPerLevel: 13, levelMinutes: 30,
-  buyIn: 640, fee: 70, poolCut: 0.04, paid: 33, currency: 'S$', field: 'mixed', schedule: SPC_MAIN_SHEET,
+  buyIn: 640, fee: 70, poolCut: 0.04, paid: 33, currency: 'S$', field: 'mixed', event: 'spcmain', schedule: SPC_MAIN_SHEET,
 };
 
 /**
@@ -169,7 +190,7 @@ const SPC_MAIN: Omit<TournamentConfig, 'seed' | 'start' | 'heroStack'> = {
  */
 const SPC_MINI: Omit<TournamentConfig, 'seed' | 'start' | 'heroStack'> = {
   name: 'SPC Mini-Roller', entrants: 50, tableSize: 9, startingStack: 30000, handsPerLevel: 17, levelMinutes: 40,
-  buyIn: 1000, fee: 100, poolCut: 0.04, paid: 6, currency: 'S$', field: 'tough', schedule: SPC_ROLLER_SHEET,
+  buyIn: 1000, fee: 100, poolCut: 0.04, paid: 6, currency: 'S$', field: 'tough', event: 'mini', schedule: SPC_ROLLER_SHEET,
 };
 
 /**
@@ -179,39 +200,39 @@ const SPC_MINI: Omit<TournamentConfig, 'seed' | 'start' | 'heroStack'> = {
  */
 const SPC_BOUNTY: Omit<TournamentConfig, 'seed' | 'start' | 'heroStack'> = {
   name: 'SPC Mystery Bounty', entrants: 30, tableSize: 9, startingStack: 15000, handsPerLevel: 9, levelMinutes: 20,
-  buyIn: 400, fee: 50, poolCut: 0.04, paid: 4, currency: 'S$', field: 'mixed', schedule: SPC_BOUNTY_SHEET, mysteryBounty: { perEntry: 90 },
+  buyIn: 400, fee: 50, poolCut: 0.04, paid: 4, currency: 'S$', field: 'mixed', event: 'bounty', schedule: SPC_BOUNTY_SHEET, mysteryBounty: { perEntry: 90 },
 };
 
 export const PRESETS: Preset[] = [
   {
     key: 'quick27', label: 'Quick 27',
     blurb: '27 players, 3 tables, 60bb starting stacks, fast levels. A full tournament in well under an hour.',
-    config: { name: 'Quick 27', entrants: 27, tableSize: 9, startingStack: 6000, handsPerLevel: 6, buyIn: 11, field: 'mixed', start: 'beginning', heroStack: 'average' },
+    config: { name: 'Quick 27', event: 'mtt', entrants: 27, tableSize: 9, startingStack: 6000, handsPerLevel: 6, buyIn: 11, field: 'mixed', start: 'beginning', heroStack: 'average' },
   },
   {
     key: 'turbo90', label: 'Turbo 90',
     blurb: '90 players, 10 tables, 100bb stacks, turbo levels. Every stage: deep, antes, bubble, final table.',
-    config: { name: 'Turbo 90', entrants: 90, tableSize: 9, startingStack: 10000, handsPerLevel: 8, buyIn: 22, field: 'mixed', start: 'beginning', heroStack: 'average' },
+    config: { name: 'Turbo 90', event: 'mtt', entrants: 90, tableSize: 9, startingStack: 10000, handsPerLevel: 8, buyIn: 22, field: 'mixed', start: 'beginning', heroStack: 'average' },
   },
   {
     key: 'major180', label: 'Sunday 180',
     blurb: '180 players, 20 tables, 100bb stacks, regular levels. The closest to a real online MTT.',
-    config: { name: 'Sunday 180', entrants: 180, tableSize: 9, startingStack: 10000, handsPerLevel: 11, buyIn: 55, field: 'mixed', start: 'beginning', heroStack: 'average' },
+    config: { name: 'Sunday 180', event: 'mtt', entrants: 180, tableSize: 9, startingStack: 10000, handsPerLevel: 11, buyIn: 55, field: 'mixed', start: 'beginning', heroStack: 'average' },
   },
   {
     key: 'midstage', label: 'Mid-Stage Grind',
     blurb: 'Jump into a 180-player field with about half the players left and ~35bb stacks. Practise accumulating chips before the bubble.',
-    config: { name: 'Mid-Stage Grind', entrants: 180, tableSize: 9, startingStack: 10000, handsPerLevel: 9, buyIn: 55, field: 'mixed', start: 'middle', heroStack: 'random' },
+    config: { name: 'Mid-Stage Grind', event: 'scenario', entrants: 180, tableSize: 9, startingStack: 10000, handsPerLevel: 9, buyIn: 55, field: 'mixed', start: 'middle', heroStack: 'random' },
   },
   {
     key: 'bubble', label: 'Bubble Trainer',
     blurb: 'Start a few eliminations before the money with ~25bb stacks. Learn when ICM says fold and when to attack.',
-    config: { name: 'Bubble Trainer', entrants: 90, tableSize: 9, startingStack: 10000, handsPerLevel: 8, buyIn: 22, field: 'mixed', start: 'bubble', heroStack: 'random' },
+    config: { name: 'Bubble Trainer', event: 'scenario', entrants: 90, tableSize: 9, startingStack: 10000, handsPerLevel: 8, buyIn: 22, field: 'mixed', start: 'bubble', heroStack: 'random' },
   },
   {
     key: 'final', label: 'Final Table Trainer',
     blurb: 'The last nine of a 180-player field. Big pay jumps, short-handed play and heads-up for the title.',
-    config: { name: 'Final Table Trainer', entrants: 180, tableSize: 9, startingStack: 10000, handsPerLevel: 8, buyIn: 55, field: 'mixed', start: 'final', heroStack: 'random' },
+    config: { name: 'Final Table Trainer', event: 'scenario', entrants: 180, tableSize: 9, startingStack: 10000, handsPerLevel: 8, buyIn: 55, field: 'mixed', start: 'final', heroStack: 'random' },
   },
   {
     key: 'spcmain', label: 'SPC Main Event',
@@ -237,6 +258,21 @@ export const PRESETS: Preset[] = [
     key: 'spcmini', label: 'SPC Mini-Roller',
     blurb: 'S$1,000 Mini-Roller on the shared Mini/High-Roller sheet: about 50 entries, 6 paid, 30,000 chips (300bb), 40-minute levels and a tougher field.',
     config: { ...SPC_MINI, start: 'beginning', heroStack: 'average' },
+  },
+  {
+    key: 'spcminiday2', label: 'Mini-Roller Day 2',
+    blurb: 'Skip Day 1 of the Mini-Roller: about 23 of 50 left with ~35bb on its 40-minute sheet. Build a stack for the 6 paid places against a tough field.',
+    config: { ...SPC_MINI, name: 'SPC Mini-Roller Day 2', start: 'middle', heroStack: 'random' },
+  },
+  {
+    key: 'spcminibubble', label: 'Mini-Roller Bubble',
+    blurb: 'Eight left in the Mini-Roller with 6 paid and a S$2,700+ min-cash. Small field, big pay jumps: learn when to tighten up and when to attack.',
+    config: { ...SPC_MINI, name: 'SPC Mini-Roller Bubble', start: 'bubble', heroStack: 'random' },
+  },
+  {
+    key: 'spcminift', label: 'Mini-Roller Final Table',
+    blurb: 'The last nine of the Mini-Roller with 6 paid: survive the final-table bubble, then S$2,700 to S$15,000+ with short-handed ICM and heads-up for the title.',
+    config: { ...SPC_MINI, name: 'SPC Mini-Roller Final Table', start: 'final', heroStack: 'random' },
   },
   {
     key: 'spcbounty', label: 'SPC Mystery Bounty',

@@ -6,7 +6,7 @@ import { PROFILES, type ProfileKey } from '../bots/profiles';
 import { positionOf } from '../theory/spot';
 import { POS_LABEL } from '../theory/positions';
 import type { Tournament } from '../tournament/tournament';
-import type { Stage } from '../tournament/structure';
+import type { EventType, Stage } from '../tournament/structure';
 import { adviseHero, gradeAction, actionCategory, describeAction, type Advice, type Verdict, type ActionCat, type Grade, type CoachContext, type DecisionKind } from './coach';
 
 export interface DecisionRecord {
@@ -36,6 +36,8 @@ export interface DecisionRecord {
   lines: string[];
   summary: string;
   tags: string[];
+  /** Kind of event the decision was made in. */
+  event?: EventType;
 }
 
 export function coachContextFor(t: Tournament, seatIds: string[]): CoachContext {
@@ -102,6 +104,7 @@ export function gradeHeroAction(t: Tournament, action: PlayerAction, advice?: Ad
     lines: adv.lines,
     summary: verdict.summary,
     tags: verdict.tags,
+    event: t.event(),
   };
   return { advice: adv, verdict, record };
 }

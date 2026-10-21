@@ -1,5 +1,5 @@
 import { Tournament, HERO_ID, mysteryEnvelopes } from './tournament';
-import { PRESETS, levelAt, stopsAfter, SPC_MAIN_SHEET, SPC_ROLLER_SHEET, SPC_BOUNTY_SHEET, isLevel, type TournamentConfig } from './structure';
+import { PRESETS, eventOfName, levelAt, stopsAfter, SPC_MAIN_SHEET, SPC_ROLLER_SHEET, SPC_BOUNTY_SHEET, isLevel, type TournamentConfig } from './structure';
 import { satellitePayouts } from '../theory/payouts';
 import { chooseBotAction } from '../bots/bot';
 import { PROFILES } from '../bots/profiles';
@@ -204,5 +204,17 @@ describe('tournament', () => {
       expect(r.prize).toBeCloseTo(t.hero().prize + (r.bounties ?? 0), 2);
     }
     expect(runsWithBounties).toBeGreaterThan(0);
+  });
+
+  it('tags every preset, hand and result with its event type', () => {
+    for (const p of PRESETS) expect(p.config.event, p.key).toBeDefined();
+    expect(PRESETS.filter((p) => p.config.event === 'mini').map((p) => p.key)).toEqual(['spcmini', 'spcminiday2', 'spcminibubble', 'spcminift']);
+    for (const p of PRESETS) expect(eventOfName(p.config.name), p.key).toBe(p.config.event);
+    const ft = PRESETS.find((p) => p.key === 'spcminift')!;
+    const { t } = playOut({ ...ft.config, seed: 5 }, 30);
+    expect(t.history.length).toBeGreaterThan(0);
+    expect(t.history.every((h) => h.event === 'mini')).toBe(true);
+    expect(t.result().event).toBe('mini');
+    expect(t.tables.length).toBe(1);
   });
 });

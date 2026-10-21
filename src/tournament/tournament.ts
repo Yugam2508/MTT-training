@@ -13,7 +13,7 @@ import { payoutStructure, paidPlaces, satellitePayouts } from '../theory/payouts
 import { positionOf } from '../theory/spot';
 import { POS_LABEL } from '../theory/positions';
 import { computeFlags, accumulate, emptyCounts, type HandFlags, type StatCounts } from '../analysis/handFlags';
-import { levelAt, levelForDepth, stopsAfter, stageOf, type Level, type Stage, type TournamentConfig } from './structure';
+import { levelAt, levelForDepth, stopsAfter, stageOf, eventOfName, type EventType, type Level, type Stage, type TournamentConfig } from './structure';
 import { makeNames } from './names';
 import { levelMinutes, BREAK_EVERY_LEVELS, BREAK_MINUTES } from './pace';
 
@@ -65,6 +65,8 @@ export interface HandRecord {
   heroNet: number;
   heroNetBB: number;
   flags: HandFlags;
+  /** Kind of event the hand was played in. */
+  event?: EventType;
 }
 
 export interface TEvent {
@@ -90,6 +92,7 @@ export interface TournamentResult {
   seat?: boolean;
   /** Mystery bounties won (included in prize). */
   bounties?: number;
+  event?: EventType;
 }
 
 export const HERO_ID = 'hero';
@@ -292,6 +295,7 @@ export class Tournament {
 
   // ---------- queries ----------
 
+  event(): EventType { return this.cfg.event ?? eventOfName(this.cfg.name); }
   level(): Level { return levelAt(this.cfg, this.levelIndex); }
   money(x: number, digits = 2) { return `${this.cfg.currency ?? '$'}${x.toFixed(digits)}`; }
   fmtLevel(l: Level) { return `${l.sb.toLocaleString()}/${l.bb.toLocaleString()} ante ${l.ante.toLocaleString()}`; }
@@ -560,6 +564,7 @@ export class Tournament {
       heroNet: s.result!.net[hi],
       heroNetBB: s.result!.net[hi] / bb,
       flags: computeFlags(s, hi),
+      event: this.event(),
     };
     this.history.push(rec);
     return rec;
@@ -790,6 +795,7 @@ export class Tournament {
       ...(this.cfg.currency ? { currency: this.cfg.currency } : {}),
       ...(this.cfg.satellite ? { seat: h.prize === this.cfg.satellite.seatValue } : {}),
       ...(this.cfg.mysteryBounty ? { bounties: h.bounty ?? 0 } : {}),
+      event: this.event(),
     };
   }
 }
