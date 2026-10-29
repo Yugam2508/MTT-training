@@ -6,11 +6,13 @@ import type { SyncDoc, DrillMap } from '../ui/store';
 import { MAX_HANDS, MAX_DECISIONS } from '../ui/store';
 import type { DrillId, LessonId } from '../analysis/leaks';
 
-function unionById<T extends { id: string; ts: number }>(a: T[], b: T[], max: number): T[] {
+function unionById<T extends { id: string; ts: number; editedAt?: number }>(a: T[], b: T[], max: number): T[] {
   const m = new Map<string, T>();
+  const ver = (x: T) => x.editedAt ?? x.ts;
   for (const x of [...a, ...b]) {
     const cur = m.get(x.id);
-    if (!cur || x.ts > cur.ts) m.set(x.id, x);
+    // the most recently edited copy wins; ties go to the larger id-stable JSON so merging stays commutative
+    if (!cur || ver(x) > ver(cur) || (ver(x) === ver(cur) && JSON.stringify(x) > JSON.stringify(cur))) m.set(x.id, x);
   }
   return [...m.values()].sort((x, y) => x.ts - y.ts || (x.id < y.id ? -1 : 1)).slice(-max);
 }
@@ -61,5 +63,6 @@ export function docKey(d: SyncDoc): string {
   const agg = Object.entries(d.aggBy).sort().map(([k, v]) => `${k}=${v.all.hands}`).join(',');
   const drills = Object.entries(d.drillsBy).sort().map(([k, m]) => `${k}=${Object.entries(m).sort().map(([i, p]) => `${i}:${p?.attempts}`).join('/')}`).join(',');
   const lessons = Object.entries(d.lessons).sort().map(([k, p]) => `${k}:${p?.read ? 1 : 0}${p?.quizBest}`).join(',');
-  return [ids(d.results), ids(d.hands), ids(d.decisions), agg, drills, lessons, d.statsResetAt ?? 0, d.progressResetAt ?? 0].join('|');
+  const edits = d.decisions.reduce((a, x) => a + (x.editedAt ?? 0) % 1e9, 0);
+  return [ids(d.results), ids(d.hands), ids(d.decisions), edits, agg, drills, lessons, d.statsResetAt ?? 0, d.progressResetAt ?? 0].join('|');
 }

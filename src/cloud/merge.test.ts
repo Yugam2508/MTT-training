@@ -45,4 +45,17 @@ describe('merge', () => {
     expect(m.drillsBy).toEqual({});
     expect(m.lessons).toEqual({});
   });
+  it('keeps the most recently edited copy of a decision, from either side', () => {
+    const base = { id: 'd1', ts: 10, grade: 'mistake', tags: ['open-too-tight'] } as never as SyncDoc['decisions'][number];
+    const marked = { ...base, deliberate: true, editedAt: 500 };
+    const a = doc({ decisions: [base] });
+    const b = doc({ decisions: [marked] });
+    expect(mergeDocs(a, b).decisions[0].deliberate).toBe(true);
+    expect(mergeDocs(b, a).decisions[0].deliberate).toBe(true);
+    // unmarking later wins over the earlier mark
+    const unmarked = { ...base, deliberate: false, editedAt: 900 };
+    expect(mergeDocs(b, doc({ decisions: [unmarked] })).decisions[0].deliberate).toBe(false);
+    // and the change is visible to sync
+    expect(docKey(a)).not.toBe(docKey(b));
+  });
 });

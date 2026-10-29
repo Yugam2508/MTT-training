@@ -241,6 +241,13 @@ function addFlags(agg: AggStats, f: HandFlags, stage: Stage): AggStats {
   return { all, byStage: { ...agg.byStage, [stage]: st }, rfi };
 }
 
+/** Mark a graded decision as a deliberate deviation (or clear the mark). Syncs. */
+export function setDeliberate(id: string, on: boolean) {
+  update((d) => {
+    d.decisions = d.decisions.map((x) => (x.id === id ? { ...x, deliberate: on, editedAt: Date.now() } : x));
+  });
+}
+
 /** Stat counters rebuilt from stored hands (for a filtered view; the running totals cover every hand). */
 export function aggFromHands(hands: HandRecord[]): AggStats {
   return hands.reduce((a, h) => addFlags(a, h.flags, h.stage), emptyAgg());

@@ -13,6 +13,7 @@ import { getActiveTournament, setActiveTournament, useNav } from '../nav';
 import { Felt, fmtAmt } from '../components/Felt';
 import { GradeBadge, RangeGrid, Seg, Tile, fmtMoney } from '../components/common';
 import { LineChart } from '../components/charts';
+import { DeliberateToggle } from '../components/Deliberate';
 import { levelMinutes, liveActionDelayMs, liveDealDelayMs, liveEndDelayMs, fmtClock, BREAK_EVERY_LEVELS, BREAK_MINUTES } from '../../tournament/pace';
 
 export function PlayPage({ preset }: { preset?: string }) {
@@ -280,6 +281,8 @@ function TableView({ t, onLeave, onNew }: { t: Tournament; onLeave: () => void; 
   };
 
   const message = s && !s.done && t.isHeroTurn() ? (busy ? 'Coach is checking your decision…' : 'Your turn') : s?.done ? handResultText(t) : undefined;
+  // marking a decision mutates the shared record; new arrays re-render the feed, overlays and session accuracy
+  const onMark = () => { setSessionDecisions((d) => [...d]); setFeed((f) => [...f]); };
   const acc = overallAccuracy(sessionDecisions);
 
   return (
@@ -305,12 +308,12 @@ function TableView({ t, onLeave, onNew }: { t: Tournament; onLeave: () => void; 
               units={settings.units}
               message={message}
               toasts={toasts.length ? toasts.map((e, i) => <div className="toast" key={i}>{e.text}</div>) : undefined}
-              overlay={overlay ? <OverlayView o={overlay} t={t} close={() => setOverlay(null)} onLeave={onLeave} onNew={onNew} nav={nav} session={sessionDecisions} /> : undefined}
+              overlay={overlay ? <OverlayView o={overlay} t={t} close={() => setOverlay(null)} onLeave={onLeave} onNew={onNew} nav={nav} session={sessionDecisions} onMark={onMark} /> : undefined}
             />
           ) : (
             <div className="felt-wrap"><div className="felt" />
               {live && !overlay && !t.heroOut && !t.finished && <LiveWait t={t} dealAt={dealAt.current} onSkipBreak={() => { t.skipBreak(); bump(); }} />}
-              {overlay && <OverlayView o={overlay} t={t} close={() => setOverlay(null)} onLeave={onLeave} onNew={onNew} nav={nav} session={sessionDecisions} />}</div>
+              {overlay && <OverlayView o={overlay} t={t} close={() => setOverlay(null)} onLeave={onLeave} onNew={onNew} nav={nav} session={sessionDecisions} onMark={onMark} />}</div>
           )}
           {s && t.isHeroTurn() && !overlay && <ActionBar t={t} onAct={act} busy={busy} onHint={askHint} hint={hint} units={settings.units} />}
           {hint && t.isHeroTurn() && <AdvicePanel advice={hint} title="Coach hint" />}
@@ -331,7 +334,7 @@ function TableView({ t, onLeave, onNew }: { t: Tournament; onLeave: () => void; 
               {acc.scored > 0 && <span className="pill accent num">{acc.good}/{acc.scored} good ({Math.round(acc.pct)}%)</span>}
             </div>
             {feed.length === 0 ? <p className="small muted">Your graded decisions appear here. Preflop all-ins use ICM near the money; postflop calls are checked against the opponent’s likely range.</p> : (
-              <div className="feed">{feed.map((r) => <FeedItem key={r.id} r={r} />)}</div>
+              <div className="feed">{feed.map((r) => <FeedItem key={r.id} r={r} onMark={onMark} />)}</div>
             )}
           </div>
           {t.stackTrail.length > 3 && (
@@ -403,7 +406,7 @@ function PayLadder({ t }: { t: Tournament }) {
   );
 }
 
-function FeedItem({ r }: { r: DecisionRecord }) {
+function FeedItem({ r, onMark }: { r: DecisionRecord; onMark: () => void }) {
   const [open, setOpen] = useState(false);
   return (
     <div className={`stripe ${r.grade} stack`} style={{ gap: 4 }}>
@@ -413,6 +416,7 @@ function FeedItem({ r }: { r: DecisionRecord }) {
       </div>
       <span className="small">{r.actionText}{r.best.length ? <span className="muted"> · best: {r.best.map(catLabel).join(' / ')}</span> : null}</span>
       {r.summary && <span className="small muted">{r.summary}</span>}
+      <div><DeliberateToggle r={r} onChange={onMark} /></div>
       {r.lines.length > 0 && <button className="btn ghost small" style={{ justifySelf: 'start', padding: 0 }} onClick={() => setOpen(!open)}>{open ? 'Hide details' : 'Why?'}</button>}
       {open && <ul className="small" style={{ margin: 0, paddingLeft: 18 }}>{r.lines.map((l, i) => <li key={i}>{l}</li>)}</ul>}
     </div>
@@ -544,8 +548,8 @@ export function AdvicePanel({ advice, title }: { advice: Advice; title: string }
   );
 }
 
-function OverlayView({ o, t, close, onLeave, onNew, nav, session }: {
-  o: Overlay; t: Tournament; close: () => void; onLeave: () => void; onNew: () => void; nav: ReturnType<typeof useNav>; session: DecisionRecord[];
+function OverlayView({ o, t, close, onLeave, onNew, nav, session, onMark }: {
+  o: Overlay; t: Tournament; close: () => void; onLeave: () => void; onNew: () => void; nav: ReturnType<typeof useNav>; session: DecisionRecord[]; onMark: () => void;
 }) {
   if (o.kind === 'decision') {
     const r = o.rec;
@@ -558,6 +562,7 @@ function OverlayView({ o, t, close, onLeave, onNew, nav, session }: {
           </div>
           <h2>{r.summary || r.title}</h2>
           <div className="small">You: <strong>{r.actionText}</strong> · Best: <strong>{r.best.map(catLabel).join(' / ')}</strong>{r.evLossBB ? <> · cost ≈ <strong className="num">{r.evLossBB.toFixed(2)}bb</strong></> : null}</div>
+          <div className="row"><DeliberateToggle r={r} onChange={onMark} /><span className="small muted">Went against it on purpose? Marked plays leave your accuracy and leaks.</span></div>
           <ul className="small" style={{ margin: 0, paddingLeft: 18, display: 'grid', gap: 4 }}>{r.lines.map((l, i) => <li key={i}>{l}</li>)}</ul>
           {o.advice.chart && <RangeGrid range={o.advice.chart.range} second={o.advice.chart.second} labels={[o.advice.chart.label, o.advice.chart.secondLabel]} />}
           <button className="btn primary" onClick={close} autoFocus>Continue</button>
@@ -575,6 +580,7 @@ function OverlayView({ o, t, close, onLeave, onNew, nav, session }: {
               <div className="spread"><strong>{r.title}</strong><GradeBadge grade={r.grade} /></div>
               <span className="small">You: {r.actionText} · Best: {r.best.map(catLabel).join(' / ')}</span>
               <span className="small muted">{r.summary}</span>
+              <div><DeliberateToggle r={r} onChange={onMark} /></div>
             </div>
           ))}
           <button className="btn primary" onClick={close} autoFocus>Next hand</button>

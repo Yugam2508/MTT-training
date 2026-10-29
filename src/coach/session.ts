@@ -38,6 +38,10 @@ export interface DecisionRecord {
   tags: string[];
   /** Kind of event the decision was made in. */
   event?: EventType;
+  /** The player chose this against the baseline on purpose (safety or image): left out of accuracy and leaks. */
+  deliberate?: boolean;
+  /** When the record was last changed after it was made (ms), so the newer copy wins on sync. */
+  editedAt?: number;
 }
 
 export function coachContextFor(t: Tournament, seatIds: string[]): CoachContext {

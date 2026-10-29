@@ -166,9 +166,13 @@ export interface LeakReport {
   examples: DecisionRecord[];
 }
 
+/** Whether a decision counts towards accuracy: graded, and not marked as a deliberate deviation. */
+export const counts = (d: DecisionRecord) => d.grade !== 'unscored' && !d.deliberate;
+
 export function decisionLeaks(decisions: DecisionRecord[]): LeakReport[] {
   const m = new Map<string, LeakReport>();
   for (const d of decisions) {
+    if (d.deliberate) continue;
     for (const tag of d.tags) {
       const def = LEAKS[tag];
       if (!def) continue;
@@ -188,7 +192,7 @@ export interface AccuracyRow { key: string; label: string; scored: number; good:
 export function accuracyBy(decisions: DecisionRecord[], keyOf: (d: DecisionRecord) => string, labelOf: (k: string) => string): AccuracyRow[] {
   const m = new Map<string, AccuracyRow>();
   for (const d of decisions) {
-    if (d.grade === 'unscored') continue;
+    if (!counts(d)) continue;
     const k = keyOf(d);
     const r = m.get(k) ?? { key: k, label: labelOf(k), scored: 0, good: 0, mistakes: 0, evLoss: 0 };
     r.scored++;
@@ -201,7 +205,7 @@ export function accuracyBy(decisions: DecisionRecord[], keyOf: (d: DecisionRecor
 }
 
 export function overallAccuracy(decisions: DecisionRecord[]): { scored: number; good: number; pct: number } {
-  const s = decisions.filter((d) => d.grade !== 'unscored');
+  const s = decisions.filter(counts);
   const g = s.filter((d) => d.grade === 'best' || d.grade === 'good').length;
   return { scored: s.length, good: g, pct: s.length ? (100 * g) / s.length : NaN };
 }

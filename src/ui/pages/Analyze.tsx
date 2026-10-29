@@ -1,7 +1,7 @@
 import { createContext, useCallback, useContext, useMemo, useState } from 'react';
 import { replay, STREET_NAMES } from '../../engine/hand';
 import { cardsToString } from '../../engine/cards';
-import { statRows, decisionLeaks, accuracyBy, overallAccuracy, STAGE_ORDER, LEAKS } from '../../analysis/leaks';
+import { statRows, decisionLeaks, accuracyBy, overallAccuracy, counts, STAGE_ORDER, LEAKS } from '../../analysis/leaks';
 import { rfiRange } from '../../theory/charts';
 import { POS_LABEL, type ChartPos } from '../../theory/positions';
 import { rangePercent } from '../../engine/ranges';
@@ -17,6 +17,7 @@ import { useNav } from '../nav';
 import { Felt } from '../components/Felt';
 import { Cards, GradeBadge, Seg, Tile, fmtMoney, fmtPct, fmtBBs } from '../components/common';
 import { BarList, GradeBar, LineChart } from '../components/charts';
+import { DeliberateToggle } from '../components/Deliberate';
 
 type Tab = 'overview' | 'leaks' | 'mistakes' | 'hands' | 'results';
 
@@ -58,7 +59,7 @@ function useEventScope(event: EventType | 'all', setEvent: (e: EventType | 'all'
     const present = EVENT_ORDER.filter((e) => seen.has(e));
     const summary: EventRow[] = present.map((e) => {
       const rs = results.filter((r) => resOf(r) === e);
-      const ds = decisions.filter((d) => evOf(d) === e && d.grade !== 'unscored');
+      const ds = decisions.filter((d) => evOf(d) === e && counts(d));
       const cost = rs.reduce((a, r) => a + r.buyIn, 0);
       return {
         event: e,
@@ -163,7 +164,8 @@ function Overview() {
   const rows = statRows(agg.all);
   const acc = overallAccuracy(decisions);
   const grades: Partial<Record<Grade, number>> = {};
-  decisions.forEach((d) => { grades[d.grade] = (grades[d.grade] ?? 0) + 1; });
+  decisions.filter(counts).forEach((d) => { grades[d.grade] = (grades[d.grade] ?? 0) + 1; });
+  const deliberate = decisions.filter((d) => d.deliberate).length;
   const byStage = accuracyBy(decisions, (d) => d.stage, (k) => STAGE_LABEL[k as Stage]).sort((a, b) => STAGE_ORDER.indexOf(a.key as Stage) - STAGE_ORDER.indexOf(b.key as Stage));
   const byKind = accuracyBy(decisions, (d) => d.kind, (k) => KIND_LABEL[k as keyof typeof KIND_LABEL]).sort((a, b) => b.scored - a.scored);
   const itm = results.filter((r) => r.prize > 0).length;
@@ -206,6 +208,7 @@ function Overview() {
           <div className="panel stack">
             <h3>Decision grades</h3>
             <GradeBar counts={grades} />
+            {deliberate > 0 && <p className="small muted">{deliberate} deliberate play{deliberate === 1 ? '' : 's'} not counted. See Mistakes, Deliberate.</p>}
           </div>
           <div className="panel stack">
             <h3>Accuracy by stage</h3>
@@ -291,10 +294,10 @@ function Mistakes() {
   const nav = useNav();
   const [street, setStreet] = useState<'all' | 'pre' | 'post'>('all');
   const [sort, setSort] = useState<'recent' | 'cost'>('recent');
-  const [min, setMin] = useState<'inaccuracy' | 'mistake'>('inaccuracy');
+  const [min, setMin] = useState<'inaccuracy' | 'mistake' | 'deliberate'>('inaccuracy');
   const list = useMemo(() => {
     const sev: Record<string, number> = { inaccuracy: 1, mistake: 2, blunder: 3 };
-    let l = decisions.filter((d) => (sev[d.grade] ?? 0) >= sev[min]);
+    let l = min === 'deliberate' ? decisions.filter((d) => d.deliberate) : decisions.filter((d) => !d.deliberate && (sev[d.grade] ?? 0) >= sev[min]);
     if (street === 'pre') l = l.filter((d) => d.street === 0);
     if (street === 'post') l = l.filter((d) => d.street > 0);
     l = l.slice().sort((a, b) => (sort === 'recent' ? b.ts - a.ts : (b.evLossBB ?? sev[b.grade]) - (a.evLossBB ?? sev[a.grade])));
@@ -304,10 +307,11 @@ function Mistakes() {
     <div className="panel stack">
       <div className="row">
         <Seg value={street} onChange={setStreet} options={[{ v: 'all', label: 'All streets' }, { v: 'pre', label: 'Preflop' }, { v: 'post', label: 'Postflop' }]} label="Street" />
-        <Seg value={min} onChange={setMin} options={[{ v: 'inaccuracy', label: 'Inaccuracies +' }, { v: 'mistake', label: 'Mistakes +' }]} label="Severity" />
+        <Seg value={min} onChange={setMin} options={[{ v: 'inaccuracy', label: 'Inaccuracies +' }, { v: 'mistake', label: 'Mistakes +' }, { v: 'deliberate', label: 'Deliberate' }]} label="Severity" />
         <Seg value={sort} onChange={setSort} options={[{ v: 'recent', label: 'Most recent' }, { v: 'cost', label: 'Most costly' }]} label="Sort" />
       </div>
-      {list.length === 0 ? <div className="empty">Nothing here. Nice.</div> : (
+      {min === 'deliberate' && list.length > 0 && <DeliberateSummary list={list} />}
+      {list.length === 0 ? <div className="empty">{min === 'deliberate' ? 'No deliberate plays marked. Use “I did this on purpose” on a graded decision to mark one.' : 'Nothing here. Nice.'}</div> : (
         <div className="table-wrap">
           <table className="data">
             <thead><tr><th>Grade</th><th>Hand</th><th>Spot</th><th>You</th><th>Best</th><th>Cost</th><th>Stage</th></tr></thead>
@@ -317,7 +321,7 @@ function Mistakes() {
                   <td><GradeBadge grade={d.grade} /></td>
                   <td className="mono">{d.cards}<div className="small muted">{d.pos} · {d.stackBB.toFixed(0)}bb</div></td>
                   <td>{d.title}<div className="small muted">{d.summary}</div></td>
-                  <td>{d.actionText}</td>
+                  <td>{d.actionText}<div style={{ marginTop: 4 }}><DeliberateToggle r={d} /></div></td>
                   <td>{d.best.map(catLabel).join(' / ')}</td>
                   <td className="num">{d.evLossBB !== null ? `${d.evLossBB.toFixed(2)}bb` : '–'}</td>
                   <td className="small">{STAGE_LABEL[d.stage]}{d.icm ? ' · ICM' : ''}</td>
@@ -328,6 +332,19 @@ function Mistakes() {
         </div>
       )}
     </div>
+  );
+}
+
+/** What deliberate deviations have cost, where the coach could put a number on it. */
+function DeliberateSummary({ list }: { list: DecisionRecord[] }) {
+  const costed = list.filter((d) => d.evLossBB !== null);
+  const cost = costed.reduce((a, d) => a + (d.evLossBB ?? 0), 0);
+  const folds = list.filter((d) => d.action === 'fold').length;
+  return (
+    <p className="small">
+      <strong>{list.length}</strong> deliberate play{list.length === 1 ? '' : 's'}: {folds} fold{folds === 1 ? '' : 's'} (usually “to be safe”) and {list.length - folds} other{list.length - folds === 1 ? '' : 's'}.
+      {costed.length > 0 ? ` Where the coach can price them (${costed.length}), they cost about ${cost.toFixed(1)}bb in total.` : ''} They don’t count towards accuracy or leaks, so check here whether they paid off.
+    </p>
   );
 }
 
@@ -444,6 +461,7 @@ function HandReplay({ rec, decisions, startMove, onBack }: { rec: HandRecord; de
               <h3 style={{ margin: 0 }}>{atDecision.title}</h3>
               <div className="small">You: <strong>{atDecision.actionText}</strong> · Best: <strong>{atDecision.best.map(catLabel).join(' / ')}</strong>{atDecision.evLossBB ? ` · cost ${atDecision.evLossBB.toFixed(2)}bb` : ''}</div>
               {atDecision.summary && <p className="small">{atDecision.summary}</p>}
+              <div><DeliberateToggle r={atDecision} /></div>
               {atDecision.lines.length > 0 && <ul className="small" style={{ margin: 0, paddingLeft: 18, display: 'grid', gap: 4 }}>{atDecision.lines.map((l, i) => <li key={i}>{l}</li>)}</ul>}
               {atDecision.tags.filter((tg) => LEAKS[tg]).map((tg) => <span key={tg} className="pill">{LEAKS[tg].title}</span>)}
             </div>
