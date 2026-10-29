@@ -105,7 +105,8 @@ function poolPerEntry(cfg: TournamentConfig): number {
 function prizesFor(cfg: TournamentConfig): number[] {
   const sat = cfg.satellite;
   if (sat) return satellitePayouts(cfg.entrants, poolPerEntry(cfg), sat.seatValue, sat.guaranteedSeats);
-  return payoutStructure(cfg.entrants, poolPerEntry(cfg), cfg.paid);
+  // a guarantee tops up a small field's pool
+  return payoutStructure(cfg.entrants, Math.max(poolPerEntry(cfg), (cfg.guarantee ?? 0) / cfg.entrants), cfg.paid);
 }
 
 /**

@@ -141,6 +141,10 @@ describe('tournament', () => {
     expect(t.paid).toBe(33);
     expect(t.prizes.length).toBe(33);
     expect(t.prizes.reduce((a, b) => a + b, 0)).toBeCloseTo(250 * 570 * 0.96, 0);
+    // the S$30,000 guarantee tops up a small Mini-Roller field
+    const mini = PRESETS.find((p) => p.key === 'spcmini')!;
+    expect(new Tournament({ ...mini.config, entrants: 20, paid: 3, seed: 1 }).prizes.reduce((a, b) => a + b, 0)).toBeCloseTo(30000, 0);
+    expect(new Tournament({ ...mini.config, seed: 1 }).prizes.reduce((a, b) => a + b, 0)).toBeCloseTo(50 * 883 * 0.96, 0);
     expect(t.prizes[0]).toBeGreaterThan(t.prizes[32] * 10);
     expect(t.level()).toEqual({ sb: 100, bb: 100, ante: 100 });
     const day2 = PRESETS.find((p) => p.key === 'spcday2')!;

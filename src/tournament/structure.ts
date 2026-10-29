@@ -82,17 +82,18 @@ export function levelForDepth(avgStack: number, targetBB: number, cfg?: Pick<Tou
 }
 
 /** Kind of event, for grouping presets and splitting stats. */
-export type EventType = 'mtt' | 'scenario' | 'spcmain' | 'satellite' | 'mini' | 'bounty';
+export type EventType = 'mtt' | 'scenario' | 'spcmain' | 'satellite' | 'mini' | 'minimain' | 'bounty';
 
 export const EVENT_LABEL: Record<EventType, string> = {
-  mtt: 'Online-style MTTs', scenario: 'Stage trainers', spcmain: 'SPC Main Event', satellite: 'SPC Satellite', mini: 'Mini-Roller', bounty: 'Mystery Bounty',
+  mtt: 'Online-style MTTs', scenario: 'Stage trainers', spcmain: 'SPC Main Event', satellite: 'SPC Satellite', mini: 'Mini-Roller', minimain: 'Mini-Main', bounty: 'Mystery Bounty',
 };
 
-export const EVENT_ORDER: EventType[] = ['mini', 'spcmain', 'satellite', 'bounty', 'mtt', 'scenario'];
+export const EVENT_ORDER: EventType[] = ['mini', 'spcmain', 'satellite', 'minimain', 'bounty', 'mtt', 'scenario'];
 
 /** Event type of a tournament by name, for records saved before configs carried one. */
 export function eventOfName(name: string): EventType {
   if (/Mini-Roller/i.test(name)) return 'mini';
+  if (/Mini-Main/i.test(name)) return 'minimain';
   if (/Mystery Bounty/i.test(name)) return 'bounty';
   if (/Satellite/i.test(name)) return 'satellite';
   if (/SPC Main/i.test(name)) return 'spcmain';
@@ -123,6 +124,8 @@ export interface TournamentConfig {
   schedule?: ScheduleItem[];
   /** Mystery bounty: this much of each buy-in goes to random bounties won for eliminations in the money. */
   mysteryBounty?: { perEntry: number };
+  /** Guaranteed prize pool: the place prizes never total less than this. */
+  guarantee?: number;
   /** Places paid, when the event fixes it. Defaults to about 15% of the field. */
   paid?: number;
   /** Money prefix for display, e.g. 'S$'. Defaults to '$'. */
@@ -145,13 +148,13 @@ export interface Preset {
 }
 
 /**
- * The SPC Main Event satellite as advertised (S$60, no fee, 10 seats guaranteed, seat = the S$530+70
- * Main Event entry). Field size and structure are assumptions: 100 entries is exactly the guarantee,
- * with 20-minute levels.
+ * The SPC XXIII Main Event 1B satellite (Saturday 11am): S$60, no fee, hyper-turbo, 10 seats guaranteed,
+ * each a S$530+70 Flight 1B entry with the 10,000-chip add-on. Its structure isn't published: 100 entries
+ * (exactly the guarantee) and 10-minute levels are assumptions.
  */
 const SPC_SATELLITE: Omit<TournamentConfig, 'seed' | 'start' | 'heroStack'> = {
-  name: 'SPC Main Event Satellite', entrants: 100, tableSize: 9, startingStack: 5000, handsPerLevel: 8, levelMinutes: 20,
-  buyIn: 60, currency: 'S$', event: 'satellite', satellite: { seatValue: 600, guaranteedSeats: 10, target: 'SPC Main Event' }, field: 'soft',
+  name: 'SPC Main Event 1B Satellite', entrants: 100, tableSize: 9, startingStack: 5000, handsPerLevel: 4, levelMinutes: 10,
+  buyIn: 60, currency: 'S$', event: 'satellite', satellite: { seatValue: 600, guaranteedSeats: 10, target: 'SPC Main Event Flight 1B' }, field: 'soft',
 };
 
 /** SPC blind sheets, from sgpokerchamps.com/event-structures (October 2026). */
@@ -180,17 +183,26 @@ export const SPC_BOUNTY_SHEET = sheet([
  */
 const SPC_MAIN: Omit<TournamentConfig, 'seed' | 'start' | 'heroStack'> = {
   name: 'SPC Main Event', entrants: 250, tableSize: 9, startingStack: 25000, handsPerLevel: 13, levelMinutes: 30,
-  buyIn: 640, fee: 70, poolCut: 0.04, paid: 33, currency: 'S$', field: 'mixed', event: 'spcmain', schedule: SPC_MAIN_SHEET,
+  buyIn: 640, fee: 70, poolCut: 0.04, guarantee: 100000, paid: 33, currency: 'S$', field: 'mixed', event: 'spcmain', schedule: SPC_MAIN_SHEET,
 };
 
 /**
- * SPC Mini-Roller: S$1,000, 30,000 chips, 40-minute levels (about 17 live hands), the shared Mini/High-Roller
- * sheet. Recent fields: 51, 60 and 40 entries with 6, 7 and 5 paid; the payouts match about S$100 of each
- * buy-in going to the fee before the 4% cut.
+ * SPC Mini-Roller: S$883 + S$117, S$30,000 guaranteed, 30,000 chips, 40-minute levels (about 17 live hands),
+ * the shared Mini/High-Roller sheet. Recent fields: 51, 60 and 40 entries with 6, 7 and 5 paid.
  */
 const SPC_MINI: Omit<TournamentConfig, 'seed' | 'start' | 'heroStack'> = {
   name: 'SPC Mini-Roller', entrants: 50, tableSize: 9, startingStack: 30000, handsPerLevel: 17, levelMinutes: 40,
-  buyIn: 1000, fee: 100, poolCut: 0.04, paid: 6, currency: 'S$', field: 'tough', event: 'mini', schedule: SPC_ROLLER_SHEET,
+  buyIn: 1000, fee: 117, poolCut: 0.04, guarantee: 30000, paid: 6, currency: 'S$', field: 'tough', event: 'mini', schedule: SPC_ROLLER_SHEET,
+};
+
+/**
+ * SPC Mini-Main Event (SPC XXIII, Sunday 11am): S$350 + S$50, turbo, single day. SPC hasn't published its
+ * structure or any results: 15,000 chips on the Mystery Bounty's fast sheet with 15-minute levels, a field
+ * of 60 and 13% paid are assumptions.
+ */
+const SPC_MINIMAIN: Omit<TournamentConfig, 'seed' | 'start' | 'heroStack'> = {
+  name: 'SPC Mini-Main Event', entrants: 60, tableSize: 9, startingStack: 15000, handsPerLevel: 7, levelMinutes: 15,
+  buyIn: 400, fee: 50, poolCut: 0.04, paid: 8, currency: 'S$', field: 'mixed', event: 'minimain', schedule: SPC_BOUNTY_SHEET,
 };
 
 /**
@@ -236,7 +248,7 @@ export const PRESETS: Preset[] = [
   },
   {
     key: 'spcmain', label: 'SPC Main Event',
-    blurb: 'The S$600 Singapore Poker Championships Main Event on the real blind sheet: 250 entries, 25,000 chips with the add-on (250bb), 30-minute levels, 13% paid.',
+    blurb: 'The S$600 SPC Main Event (S$100,000 guaranteed) on the real blind sheet: 250 entries, 25,000 chips with the add-on (250bb), 30-minute levels, 13% paid.',
     config: { ...SPC_MAIN, start: 'beginning', heroStack: 'average' },
   },
   {
@@ -246,7 +258,7 @@ export const PRESETS: Preset[] = [
   },
   {
     key: 'spcsat', label: 'SPC Satellite',
-    blurb: 'Live S$60 satellite to the S$600 Singapore Poker Championships Main Event: 100 players, 10 seats, 50bb stacks, fast levels. Every seat is worth the same, so surviving beats chips.',
+    blurb: 'The S$60 hyper-turbo satellite to Main Event Flight 1B (Saturday 11am): 10 seats guaranteed, each with the 10,000-chip add-on. Fast levels, and every seat is worth the same, so surviving beats chips.',
     config: { ...SPC_SATELLITE, start: 'beginning', heroStack: 'average' },
   },
   {
@@ -275,8 +287,13 @@ export const PRESETS: Preset[] = [
     config: { ...SPC_MINI, name: 'SPC Mini-Roller Final Table', start: 'final', heroStack: 'random' },
   },
   {
+    key: 'spcminimain', label: 'SPC Mini-Main Event',
+    blurb: 'S$400 (S$350+50) single-day turbo on the Sunday of SPC XXIII. Structure not published yet: 15,000 chips, 15-minute levels, about 60 players, 8 paid.',
+    config: { ...SPC_MINIMAIN, start: 'beginning', heroStack: 'average' },
+  },
+  {
     key: 'spcbounty', label: 'SPC Mystery Bounty',
-    blurb: 'S$400 Mystery Bounty: about 30 entries, 4 paid, 15,000 chips, fast 20-minute levels. From the bubble on, every knockout wins a random bounty from a S$90-per-entry pool.',
+    blurb: 'Not on the December schedule. S$400 Mystery Bounty: about 30 entries, 4 paid, 15,000 chips, fast 20-minute levels. From the bubble on, every knockout wins a random bounty from a S$90-per-entry pool.',
     config: { ...SPC_BOUNTY, start: 'beginning', heroStack: 'average' },
   },
 ];
