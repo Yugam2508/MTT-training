@@ -18,6 +18,7 @@ import { Felt } from '../components/Felt';
 import { Cards, GradeBadge, Seg, Tile, fmtMoney, fmtPct, fmtBBs } from '../components/common';
 import { BarList, GradeBar, LineChart } from '../components/charts';
 import { DeliberateToggle } from '../components/Deliberate';
+import { allInLuck, summarize, type AllIn, type AllInLuck } from '../../analysis/allinLuck';
 
 type Tab = 'overview' | 'leaks' | 'mistakes' | 'hands' | 'results';
 
@@ -30,10 +31,12 @@ interface Scope {
   event: EventType | 'all';
   /** One row per kind of event played, for the all-events view. */
   summary: EventRow[];
+  /** All-in run-outs in the stored hands shown. */
+  allins: AllInLuck;
   setEvent: (e: EventType | 'all') => void;
 }
 
-interface EventRow { event: EventType; tournaments: number; itm: number; roi: number; avgFinish: number; scored: number; acc: number; bad: number }
+interface EventRow { event: EventType; tournaments: number; itm: number; roi: number; avgFinish: number; scored: number; acc: number; bad: number; luckBB: number; allins: number }
 
 const ScopeCtx = createContext<Scope | null>(null);
 const useScope = () => useContext(ScopeCtx)!;
@@ -57,6 +60,9 @@ function useEventScope(event: EventType | 'all', setEvent: (e: EventType | 'all'
     const resOf = (r: TournamentResult): EventType => r.event ?? eventOfName(r.name);
     const seen = new Set<EventType>([...hands.map(evOf), ...decisions.map(evOf), ...results.map(resOf)]);
     const present = EVENT_ORDER.filter((e) => seen.has(e));
+    const luckAll = allInLuck(hands);
+    const tidEvent = new Map(hands.map((h) => [h.tid, evOf(h)]));
+    const luckFor = (keep: (a: AllIn) => boolean): AllInLuck => summarize(luckAll.list.filter(keep));
     const summary: EventRow[] = present.map((e) => {
       const rs = results.filter((r) => resOf(r) === e);
       const ds = decisions.filter((d) => evOf(d) === e && counts(d));
@@ -70,12 +76,13 @@ function useEventScope(event: EventType | 'all', setEvent: (e: EventType | 'all'
         scored: ds.length,
         acc: ds.length ? (100 * ds.filter((d) => d.grade === 'best' || d.grade === 'good').length) / ds.length : NaN,
         bad: ds.length ? (100 * ds.filter((d) => d.grade === 'mistake' || d.grade === 'blunder').length) / ds.length : NaN,
+        ...(() => { const l = luckFor((a) => tidEvent.get(a.tid) === e); return { luckBB: l.luckBB, allins: l.count }; })(),
       };
     });
-    if (event === 'all') return { scope: { hands, decisions, results, agg, event, summary, setEvent }, present };
+    if (event === 'all') return { scope: { hands, decisions, results, agg, event, summary, allins: luckAll, setEvent }, present };
     const h = hands.filter((x) => evOf(x) === event);
     return {
-      scope: { hands: h, decisions: decisions.filter((x) => evOf(x) === event), results: results.filter((r) => resOf(r) === event), agg: aggFromHands(h), event, summary, setEvent },
+      scope: { hands: h, decisions: decisions.filter((x) => evOf(x) === event), results: results.filter((r) => resOf(r) === event), agg: aggFromHands(h), event, summary, allins: luckFor((a) => tidEvent.get(a.tid) === event), setEvent },
       present,
     };
   }, [hands, decisions, results, agg, event, setEvent]);
@@ -138,7 +145,7 @@ function EventTable() {
     <div className="panel table-wrap">
       <h3>By event type</h3>
       <table className="data">
-        <thead><tr><th>Event type</th><th>Tournaments</th><th>In the money</th><th>ROI</th><th>Avg finish</th><th>Decisions</th><th>Accuracy</th><th>Mistakes + blunders</th></tr></thead>
+        <thead><tr><th>Event type</th><th>Tournaments</th><th>In the money</th><th>ROI</th><th>Avg finish</th><th>Decisions</th><th>Accuracy</th><th>Mistakes + blunders</th><th>All-in luck</th></tr></thead>
         <tbody>
           {summary.map((r) => (
             <tr key={r.event} className="clickable" onClick={() => setEvent(r.event)} title={`Show ${EVENT_LABEL[r.event]} only`}>
@@ -150,11 +157,56 @@ function EventTable() {
               <td className="num">{r.scored}</td>
               <td className="num">{f(r.acc)}</td>
               <td className="num">{f(r.bad, 1)}</td>
+              <td className="num" style={{ color: r.luckBB > 0 ? 'var(--g-best)' : r.luckBB < 0 ? 'var(--g-blunder)' : undefined }}>{r.allins ? `${r.luckBB >= 0 ? '+' : '−'}${Math.abs(r.luckBB).toFixed(0)}bb` : '–'}</td>
             </tr>
           ))}
         </tbody>
       </table>
       <p className="small muted">Click a row to see that event type on its own. Scenario starts count their finish from where they began.</p>
+    </div>
+  );
+}
+
+/** How the cards ran when you were all-in, compared with your equity. */
+function LuckPanel() {
+  const { allins } = useScope();
+  const nav = useNav();
+  const [open, setOpen] = useState(false);
+  if (!allins.count) return null;
+  const sign = (x: number) => `${x >= 0 ? '+' : '−'}${Math.abs(x).toFixed(1)}`;
+  const fs = allins.forStack;
+  const z = allins.spreadBB ? allins.luckBB / allins.spreadBB : 0;
+  const verdict = Math.abs(z) < 1
+    ? `Within normal swings (±${allins.spreadBB.toFixed(0)}bb is typical for this many all-ins).`
+    : z > 0 ? `Above your equity by more than a normal swing (±${allins.spreadBB.toFixed(0)}bb): expect results to cool off.` : `Below your equity by more than a normal swing (±${allins.spreadBB.toFixed(0)}bb): your results understate how you played these spots.`;
+  return (
+    <div className="panel stack">
+      <div className="spread"><h3 style={{ margin: 0 }}>All-in luck</h3><span className="small muted">{allins.count} all-ins with cards to come</span></div>
+      <div className="grid cols-3">
+        <Tile label="All-ins won" value={<span className="num">{allins.won} / {allins.count}</span>} sub={`your equity says ${allins.expectedWins.toFixed(1)}`} />
+        <Tile label="Luck" value={<span className="num" style={{ color: allins.luckBB >= 0 ? 'var(--g-best)' : 'var(--g-blunder)' }}>{sign(allins.luckBB)}bb</span>} sub="chips won minus what your equity was worth" />
+        <Tile label="For your tournament life" value={fs.count ? <span className="num">{fs.won} / {fs.count}</span> : '–'} sub={fs.count ? `survived; equity says ${fs.expectedWins.toFixed(1)}` : 'none yet'} />
+      </div>
+      <p className="small muted">{verdict} Luck evens out over hundreds of all-ins; your decisions are what you control.</p>
+      <div><button className="btn ghost small" onClick={() => setOpen(!open)}>{open ? 'Hide all-ins' : 'Show all-ins'}</button></div>
+      {open && (
+        <div className="table-wrap">
+          <table className="data">
+            <thead><tr><th>Hand</th><th>Street</th><th>Equity</th><th>Result</th><th>Luck</th></tr></thead>
+            <tbody>
+              {allins.list.slice().sort((a, b) => b.ts - a.ts).slice(0, 60).map((a) => (
+                <tr key={a.id} className="clickable" onClick={() => nav({ page: 'analyze', tab: 'overview', hand: a.id })}>
+                  <td className="mono">{a.cards}{a.forStack ? <span className="pill" style={{ marginLeft: 6 }}>for stack</span> : null}</td>
+                  <td>{STREET_NAMES[a.street]}</td>
+                  <td className="num">{Math.round(a.equity * 100)}%</td>
+                  <td>{a.won ? 'Won' : 'Lost'}</td>
+                  <td className="num" style={{ color: a.luckBB >= 0 ? 'var(--g-best)' : 'var(--g-blunder)' }}>{sign(a.luckBB)}bb</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
     </div>
   );
 }
@@ -175,6 +227,7 @@ function Overview() {
   return (
     <>
       {event === 'all' && summary.length > 1 && <EventTable />}
+      <LuckPanel />
       <div className="grid cols-4">
         <div className="panel"><Tile label="Hands" value={agg.all.hands.toLocaleString()} sub={`${fmtBBs(agg.all.netBB)} total`} /></div>
         <div className="panel"><Tile label="Decision accuracy" value={fmtPct(acc.pct)} sub={`${acc.good} of ${acc.scored} graded decisions`} /></div>
