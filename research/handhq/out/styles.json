@@ -1,0 +1,73 @@
+{
+ "k": 4,
+ "minHands": 300,
+ "features": [
+  "vpip",
+  "pfr",
+  "limp",
+  "rfi",
+  "threeBet",
+  "foldTo3Bet",
+  "bbFoldToSteal",
+  "allinPre",
+  "avgStackBB"
+ ],
+ "styles": [
+  {
+   "style": 0,
+   "players": 13340,
+   "hands": 25263375,
+   "vpip": 0.187,
+   "pfr": 0.079,
+   "limp": 0.074,
+   "rfi": 0.115,
+   "threeBet": 0.027,
+   "foldTo3Bet": 0.459,
+   "bbFoldToSteal": 0.767,
+   "allinPre": 0.004,
+   "avgStackBB": 81.063
+  },
+  {
+   "style": 1,
+   "players": 10978,
+   "hands": 29923432,
+   "vpip": 0.234,
+   "pfr": 0.16,
+   "limp": 0.031,
+   "rfi": 0.241,
+   "threeBet": 0.054,
+   "foldTo3Bet": 0.554,
+   "bbFoldToSteal": 0.735,
+   "allinPre": 0.004,
+   "avgStackBB": 113.899
+  },
+  {
+   "style": 2,
+   "players": 8494,
+   "hands": 5956448,
+   "vpip": 0.413,
+   "pfr": 0.081,
+   "limp": 0.24,
+   "rfi": 0.11,
+   "threeBet": 0.029,
+   "foldTo3Bet": 0.426,
+   "bbFoldToSteal": 0.584,
+   "allinPre": 0.006,
+   "avgStackBB": 81.236
+  },
+  {
+   "style": 3,
+   "players": 5272,
+   "hands": 5909830,
+   "vpip": 0.416,
+   "pfr": 0.208,
+   "limp": 0.107,
+   "rfi": 0.301,
+   "threeBet": 0.077,
+   "foldTo3Bet": 0.397,
+   "bbFoldToSteal": 0.534,
+   "allinPre": 0.016,
+   "avgStackBB": 86.673
+  }
+ ]
+}

@@ -1,0 +1,80 @@
+{
+ "rows": 81585925,
+ "byEffBB": [
+  {
+   "from": 0,
+   "to": 10,
+   "decisions": 420764,
+   "allins": 48362,
+   "withAntes": 759
+  },
+  {
+   "from": 10,
+   "to": 15,
+   "decisions": 1011620,
+   "allins": 48784,
+   "withAntes": 1240
+  },
+  {
+   "from": 15,
+   "to": 20,
+   "decisions": 4678461,
+   "allins": 115957,
+   "withAntes": 2283
+  },
+  {
+   "from": 20,
+   "to": 30,
+   "decisions": 8607777,
+   "allins": 160897,
+   "withAntes": 8675
+  },
+  {
+   "from": 30,
+   "to": 40,
+   "decisions": 5699818,
+   "allins": 38821,
+   "withAntes": 21245
+  },
+  {
+   "from": 40,
+   "to": 60,
+   "decisions": 8700886,
+   "allins": 24370,
+   "withAntes": 37564
+  },
+  {
+   "from": 60,
+   "to": 80,
+   "decisions": 6841011,
+   "allins": 9841,
+   "withAntes": 33687
+  },
+  {
+   "from": 80,
+   "to": 120,
+   "decisions": 33798436,
+   "allins": 26797,
+   "withAntes": 133591
+  },
+  {
+   "from": 120,
+   "to": 400,
+   "decisions": 11827152,
+   "allins": 4083,
+   "withAntes": 310741
+  }
+ ],
+ "withAntes": 549785,
+ "shownCards": 4571254,
+ "byTableSize": {
+  "3": 1279324,
+  "4": 5332545,
+  "5": 18128662,
+  "6": 25844533,
+  "7": 5116206,
+  "8": 12334042,
+  "9": 13224312,
+  "10": 326301
+ }
+}

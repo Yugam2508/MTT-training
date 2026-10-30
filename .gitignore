@@ -6,3 +6,4 @@ dist-single
 .data
 .vercel
 research/log-*.txt
+research/handhq/out/player_styles.tsv
