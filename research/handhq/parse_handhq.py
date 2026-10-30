@@ -12,6 +12,7 @@ the research uses them as a population, to learn playing styles.
   python3 research/handhq/parse_handhq.py <phh-dataset>/data/handhq <out-dir> [workers]
 """
 import json
+import math
 import os
 import re
 import sys
@@ -81,6 +82,8 @@ def parse_hand(h, site, stats, rows, pids, pid_of):
         actions = [a.strip().strip("'") for a in h['actions']]
     except (KeyError, ValueError):
         return
+    if not all(math.isfinite(x) and x >= 0 for x in stacks + blinds + antes):
+        return  # a few records have corrupt amounts
     n = len(stacks)
     if n < 3 or len(players) != n or len(blinds) < 2 or blinds[1] <= 0 or any(b > 0 for b in blinds[2:]):
         return  # heads-up and straddled hands are left out
@@ -163,7 +166,12 @@ def parse_hand(h, site, stats, rows, pids, pid_of):
                     f['allin'] = 1
             committed[i] = to
         elif code == 'cbr' and len(parts) > 2:
-            to = min(chips, float(parts[2]))
+            try:
+                to = min(chips, float(parts[2]))
+            except ValueError:
+                return
+            if not math.isfinite(to):
+                return
             act = 4 if to >= chips - 1e-9 else 3
             f['vpip'] = 1
             f['pfr'] = 1
