@@ -20,6 +20,8 @@ export interface Settings {
   hud: boolean;
   revealTypes: boolean;
   theme: 'system' | 'light' | 'dark';
+  /** Opponents notice how you play and adjust to it. */
+  adaptive: boolean;
 }
 
 export interface DrillProgress { attempts: number; correct: number; streak: number; best: number; recent: number[]; ts?: number }
@@ -93,7 +95,7 @@ export const STORAGE_OK = (() => {
 })();
 
 export const DEFAULT_SETTINGS: Settings = {
-  heroName: 'You', coach: 'instant', speed: 'normal', pace: 'fast', units: 'bb', fourColor: false, hud: true, revealTypes: false, theme: 'system',
+  heroName: 'You', coach: 'instant', speed: 'normal', pace: 'fast', units: 'bb', fourColor: false, hud: true, revealTypes: false, theme: 'system', adaptive: true,
 };
 
 export const emptyAgg = (): AggStats => ({ all: emptyCounts(), byStage: {}, rfi: {} });

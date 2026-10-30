@@ -135,6 +135,8 @@ export interface TournamentConfig {
   field: FieldMix;
   /** Kind of event, for grouping presets and splitting stats. */
   event?: EventType;
+  /** Opponents at your table read your tendencies and adjust (observant ones most). */
+  adaptive?: boolean;
   start: StartPoint;
   heroStack: HeroStackOption;
   seed: number;

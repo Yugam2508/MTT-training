@@ -13,6 +13,7 @@ import { payoutStructure, paidPlaces, satellitePayouts } from '../theory/payouts
 import { positionOf } from '../theory/spot';
 import { POS_LABEL } from '../theory/positions';
 import { computeFlags, accumulate, emptyCounts, type HandFlags, type StatCounts } from '../analysis/handFlags';
+import { heroRead, readNotes, type ReadNote } from '../bots/read';
 import { levelAt, levelForDepth, stopsAfter, stageOf, eventOfName, type EventType, type Level, type Stage, type TournamentConfig } from './structure';
 import { makeNames } from './names';
 import { levelMinutes, BREAK_EVERY_LEVELS, BREAK_MINUTES } from './pace';
@@ -414,7 +415,25 @@ export class Tournament {
     const prof = this.players.get(id)!.profile;
     const raw = this.bf.get(id) ?? 1;
     const aware = prof === 'hero' ? 1 : PROFILES[prof].icm;
-    return { bf: 1 + (raw - 1) * aware };
+    const ctx: { bf: number; read?: ReturnType<typeof heroRead> } = { bf: 1 + (raw - 1) * aware };
+    // adaptive opponents: bots in the hero's hand act on what they've seen of the hero
+    if (this.cfg.adaptive && prof !== 'hero') {
+      const hi = this.currentSeatIds.indexOf(HERO_ID);
+      if (hi >= 0 && this.currentSeatIds.includes(id)) ctx.read = heroRead(this.hud.get(HERO_ID), PROFILES[prof].adapt, hi);
+    }
+    return ctx;
+  }
+
+  /** What an observant opponent has noticed about the hero so far (empty when not adaptive). */
+  heroReads(): ReadNote[] {
+    return this.cfg.adaptive ? readNotes(this.hud.get(HERO_ID)) : [];
+  }
+
+  /** Opponents at the hero's table who adjust a lot to what they see (regulars and loose-aggressive players). */
+  observantOpponents(): number {
+    const t = this.heroTable();
+    if (!t) return 0;
+    return t.seats.filter((id) => id && id !== HERO_ID && !this.players.get(id)!.busted && PROFILES[this.players.get(id)!.profile as ProfileKey].adapt >= 0.6).length;
   }
 
   // ---------- hands ----------

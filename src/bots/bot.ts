@@ -14,7 +14,7 @@ export function botBuckets(s: HandState, i: number, prof: Profile, ctx: BotCtx):
   }
   const table = boardTable(s.board);
   const k = comboIndex(p.cards[0], p.cards[1]);
-  const c = postflopCtx(s, i, prof, table.wetness);
+  const c = postflopCtx(s, i, prof, table.wetness, ctx.read);
   const b = normalize(postflopDist(c, prof, table.hs[k], table.ppot[k]));
   return { buckets: b, raiseTo: c.toCall > 0 ? c.raiseTo : c.betTo };
 }

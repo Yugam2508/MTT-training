@@ -53,7 +53,7 @@ function Setup({ onStart, initial }: { onStart: (t: Tournament) => void; initial
   const [heroStack, setHeroStack] = useState<HeroStackOption>(preset.config.heroStack);
   const scenario = preset.config.start !== 'beginning';
   const begin = () => {
-    const cfg = { ...preset.config, field, heroStack, pace: settings.pace, seed: randomSeed() };
+    const cfg = { ...preset.config, field, heroStack, pace: settings.pace, adaptive: settings.adaptive !== false, seed: randomSeed() };
     onStart(new Tournament(cfg, settings.heroName || 'You'));
   };
   return (
@@ -100,6 +100,13 @@ function Setup({ onStart, initial }: { onStart: (t: Tournament) => void; initial
               <Seg value={heroStack} onChange={setHeroStack} options={[{ v: 'random', label: 'Random' }, { v: 'short', label: 'Short' }, { v: 'average', label: 'Average' }, { v: 'big', label: 'Big' }]} label="Hero stack" />
             </div>
           )}
+          <div className="stack">
+            <span className="label">Opponents</span>
+            <Seg value={settings.adaptive !== false ? 'on' : 'off'} onChange={(v) => setSettings({ adaptive: v === 'on' })} options={[{ v: 'on', label: 'Adapt to you' }, { v: 'off', label: 'Fixed styles' }]} label="Adaptive opponents" />
+            <span className="small muted">{settings.adaptive !== false
+              ? 'Like real players, opponents notice your tendencies and exploit them: regulars adjust the most, recreational players barely at all.'
+              : 'Every opponent plays a fixed style, whatever you do.'}</span>
+          </div>
           <div className="stack">
             <span className="label">Coach feedback</span>
             <Seg value={settings.coach} onChange={(v) => setSettings({ coach: v })} options={[{ v: 'instant', label: 'Stop on mistakes' }, { v: 'hand', label: 'After each hand' }, { v: 'off', label: 'Silent (review later)' }]} label="Coach" />
@@ -328,6 +335,7 @@ function TableView({ t, onLeave, onNew }: { t: Tournament; onLeave: () => void; 
             </div>
             <PayLadder t={t} />
           </div>
+          {t.cfg.adaptive && <TableReads t={t} />}
           <div className="panel stack">
             <div className="spread">
               <h3 style={{ margin: 0 }}>Coach</h3>
@@ -402,6 +410,20 @@ function PayLadder({ t }: { t: Tournament }) {
       {out > 0
         ? <span>{out} more elimination{out > 1 ? 's' : ''} to the money. Min-cash {fmtMoney(t.prizes[t.paid - 1], cur)}; 1st {fmtMoney(t.prizes[0], cur)}.</span>
         : <span>In the money. Next pay jump: {fmtMoney(nextPrize, cur)} ({ordinal(left - 1)}). 1st pays {fmtMoney(t.prizes[0], cur)}.</span>}
+    </div>
+  );
+}
+
+/** What the table has noticed about you, and what they're doing about it. */
+function TableReads({ t }: { t: Tournament }) {
+  const notes = t.heroReads().slice(0, 3);
+  const observant = t.observantOpponents();
+  return (
+    <div className="panel stack">
+      <div className="spread"><h3 style={{ margin: 0 }}>Table reads on you</h3><span className="small muted">{observant} observant here</span></div>
+      {notes.length === 0
+        ? <p className="small muted">Nothing stands out yet. Opponents need a few orbits to read you, and balanced play gives them nothing to exploit.</p>
+        : notes.map((n) => <div key={n.trait} className="small stripe inaccuracy">{n.text} <span className="muted num">({Math.round(n.rate * 100)}% of {n.n})</span></div>)}
     </div>
   );
 }

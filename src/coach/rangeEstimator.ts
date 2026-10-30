@@ -82,7 +82,7 @@ export function estimateRanges(
         for (let k = 0; k < NUM_COMBOS; k++) if (w[k] > 0) w[k] *= byClass[COMBO_CLASS[k]];
       } else {
         const table = boardTable(s.board);
-        const c = postflopCtx(s, i, prof, table.wetness);
+        const c = postflopCtx(s, i, prof, table.wetness, ctxOf(i).read);
         for (let k = 0; k < NUM_COMBOS; k++) {
           if (w[k] <= 0) continue;
           const hs = table.hs[k];

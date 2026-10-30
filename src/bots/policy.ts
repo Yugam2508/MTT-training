@@ -15,6 +15,7 @@ import { rfiRange, vsOpenRanges, vs3betRanges, jamVs3betRange, vs4betRange, scal
 import { nashPush } from '../theory/pushfoldCharts';
 import { requiredEquity } from '../theory/icm';
 import type { Profile } from './profiles';
+import { vsHero, type HeroRead } from './read';
 
 export type Bucket = 'fold' | 'passive' | 'raise' | 'allin';
 export interface Buckets { fold: number; passive: number; raise: number; allin: number }
@@ -22,6 +23,8 @@ export interface Buckets { fold: number; passive: number; raise: number; allin: 
 export interface BotCtx {
   /** Bubble factor for this player (1 = chip EV). Already scaled by ICM awareness. */
   bf: number;
+  /** What this bot has noticed about the hero (adaptive opponents), when the hero is in the hand. */
+  read?: HeroRead | null;
 }
 
 export interface PreflopPlan {
@@ -130,12 +133,16 @@ export function preflopPlan(s: HandState, i: number, prof: Profile, ctx: BotCtx)
     }
   };
 
+  // the hero's tendencies, when the hero is the player this decision is mostly about
+  const read = ctx.read && ctx.read.idx !== i && !s.players[ctx.read.idx]?.folded ? ctx.read : null;
   if (spot.kind === 'unopened' || spot.kind === 'limped') {
     const bbOption = L.canCheck;
+    const heroInBlinds = !!read && (read.idx === s.sbI || read.idx === s.bbI);
+    const steal = heroInBlinds ? 1 + (vsHero.steal(read) - 1) * (spot.behind <= 3 ? 1 : 0.5) : 1;
     if (eff <= prof.pushFoldBB) {
       // ICM pressure approximated by pushing as if deeper
       const pushStack = clamp(eff * (1 + 0.6 * (bfR - 1)), 1, 25);
-      const push = scaleRange(nashPush(Math.max(1, spot.behind), pushStack), prof.pushLoose * (spot.limpers ? 0.8 : 1));
+      const push = scaleRange(nashPush(Math.max(1, spot.behind), pushStack), prof.pushLoose * steal * (spot.limpers ? 0.8 : 1));
       const limpRange = prof.limp > 0 ? scaleRange(rfiRange(spot.pos === 'BB' ? 'SB' : spot.pos), prof.loose) : null;
       for (let h = 0; h < NUM_CLASSES; h++) {
         allin[h] = push[h];
@@ -154,7 +161,7 @@ export function preflopPlan(s: HandState, i: number, prof: Profile, ctx: BotCtx)
       return { spot, raise, allin, passive, raiseTo, label };
     }
     const base = rfiRange(spot.pos);
-    const open = scaleRange(base, prof.loose * (spot.limpers ? 0.7 : 1));
+    const open = scaleRange(base, prof.loose * steal * (spot.limpers ? 0.7 : 1));
     const overlimp = spot.limpers && prof.limp > 0 ? scaleRange(base, prof.loose * 1.3) : null;
     for (let h = 0; h < NUM_CLASSES; h++) {
       const w = open[h];
@@ -164,7 +171,7 @@ export function preflopPlan(s: HandState, i: number, prof: Profile, ctx: BotCtx)
       if (overlimp) passive[h] = Math.max(passive[h], Math.min(1 - raise[h], overlimp[h] * prof.limp));
     }
     if (eff <= 20 && prof.limp === 0) {
-      const push = scaleRange(nashPush(Math.max(1, spot.behind), clamp(eff * (1 + 0.6 * (bfR - 1)), 1, 25)), prof.pushLoose);
+      const push = scaleRange(nashPush(Math.max(1, spot.behind), clamp(eff * (1 + 0.6 * (bfR - 1)), 1, 25)), prof.pushLoose * steal);
       for (let h = 0; h < NUM_CLASSES; h++) {
         if (push[h] > 0 && !premium(h)) { allin[h] = push[h]; raise[h] = Math.max(0, raise[h] - push[h]); passive[h] = Math.min(passive[h], 1 - allin[h] - raise[h]); }
       }
@@ -178,7 +185,7 @@ export function preflopPlan(s: HandState, i: number, prof: Profile, ctx: BotCtx)
   }
 
   if (spot.kind === 'vsAllIn') {
-    const range = estimateShoveRange(s, spot.lastRaiserIdx);
+    const range = estimateShoveRange(s, spot.lastRaiserIdx, read && spot.lastRaiserIdx === read.idx ? vsHero.shoveRange(read) : 1);
     const risk = L.callAmount;
     const myMax = me.total + risk;
     let winnable = 0;
@@ -196,13 +203,14 @@ export function preflopPlan(s: HandState, i: number, prof: Profile, ctx: BotCtx)
     const og = posGroup(spot.openerPos!);
     const { threeBet, call } = vsOpenRanges(spot.pos, og);
     const sizeAdj = clamp(2.5 / Math.max(2, spot.openToBB), 0.5, 1.2);
-    const tb = scaleRange(threeBet, prof.threeBet * (spot.callers || spot.limpers ? 0.7 : 1));
-    const cl = scaleRange(call, prof.call * (spot.callers ? 0.75 : 1) * sizeAdj);
+    const vsHeroOpen = read && spot.openerIdx === read.idx ? read : null;
+    const tb = scaleRange(threeBet, prof.threeBet * vsHero.threeBet(vsHeroOpen) * (spot.callers || spot.limpers ? 0.7 : 1));
+    const cl = scaleRange(call, prof.call * vsHero.call(vsHeroOpen) * (spot.callers ? 0.75 : 1) * sizeAdj);
     if (eff <= 25) {
       const postedBB = me.total / bb;
       const deadBB = anteBB + (spot.callers + spot.limpers) * Math.min(spot.openToBB, 1.5);
       const rs = restealRange(eff, spot.openerPos!, spot.openToBB, postedBB, deadBB, bfR);
-      const jam = scaleRange(rs, prof.pushLoose);
+      const jam = scaleRange(rs, prof.pushLoose * vsHero.reshove(vsHeroOpen));
       const callScale = eff > 15 ? 0.5 : spot.pos === 'BB' ? 0.35 : 0;
       for (let h = 0; h < NUM_CLASSES; h++) {
         allin[h] = jam[h];
@@ -235,16 +243,17 @@ export function preflopPlan(s: HandState, i: number, prof: Profile, ctx: BotCtx)
       label = 'cold vs 3-bet';
       return { spot, raise, allin, passive, raiseTo, label };
     }
+    const vs3 = prof.vs3bet * vsHero.vs3bet(read && spot.lastRaiserIdx === read.idx ? read : null);
     if (eff <= 35) {
-      const j = scaleRange(jamVs3betRange(), prof.vs3bet);
+      const j = scaleRange(jamVs3betRange(), vs3);
       for (let h = 0; h < NUM_CLASSES; h++) allin[h] = j[h];
       label = 'jam or fold vs 3-bet';
       return { spot, raise, allin, passive, raiseTo, label };
     }
     const threeBettorIP = !isInPosition(s, i);
     const { fourBet, call } = vs3betRanges(!threeBettorIP);
-    const fb = scaleRange(fourBet, prof.vs3bet);
-    const cl = scaleRange(call, prof.vs3bet);
+    const fb = scaleRange(fourBet, vs3);
+    const cl = scaleRange(call, vs3);
     for (let h = 0; h < NUM_CLASSES; h++) { raise[h] = fb[h]; passive[h] = Math.min(cl[h], 1 - fb[h]); }
     raiseTo = Math.round(lastTo * 2.3);
     commitToAllin(0.35);
@@ -260,7 +269,7 @@ export function preflopPlan(s: HandState, i: number, prof: Profile, ctx: BotCtx)
 }
 
 /** Approximate shoving range for player j, based on stack depth, position and prior raises. */
-export function estimateShoveRange(s: HandState, j: number): Range {
+export function estimateShoveRange(s: HandState, j: number, widen = 1): Range {
   if (j < 0) return topPercentRange(20, classesByRawEquity());
   const bb = s.cfg.bb;
   const p = s.players[j];
@@ -283,7 +292,7 @@ export function estimateShoveRange(s: HandState, j: number): Range {
     pct *= clamp(1.8 - 0.15 * behind, 0.7, 1.6);
   } else if (raisesBefore === 1) pct *= 0.65;
   else pct = 5;
-  return topPercentRange(clamp(pct, 3, 90), classesByRawEquity());
+  return topPercentRange(clamp(pct * widen, 3, 90), classesByRawEquity());
 }
 
 // ---------------- postflop ----------------
@@ -302,9 +311,11 @@ export interface PostflopCtx {
   maxTo: number;
   raisesThisStreet: number;
   potOdds: number;
+  /** Adjustments against the hero, when the hero is still in the hand. */
+  vsHero?: { bluff: number; valueShift: number; callShift: number };
 }
 
-export function postflopCtx(s: HandState, i: number, prof: Profile, wetness: number): PostflopCtx {
+export function postflopCtx(s: HandState, i: number, prof: Profile, wetness: number, read?: HeroRead | null): PostflopCtx {
   const L = legalActions(s);
   const pot = potSize(s);
   const nOpp = s.players.filter((p, j) => j !== i && !p.folded).length;
@@ -330,6 +341,7 @@ export function postflopCtx(s: HandState, i: number, prof: Profile, wetness: num
     maxTo: L.maxRaiseTo,
     raisesThisStreet: s.raisesThisStreet,
     potOdds: L.toCall > 0 ? L.callAmount / (pot + L.callAmount) : 0,
+    ...(read && read.idx !== i && !s.players[read.idx]?.folded ? { vsHero: { bluff: vsHero.bluff(read), valueShift: vsHero.valueShift(read), callShift: vsHero.callShift(read) } } : {}),
   };
 }
 
@@ -338,12 +350,13 @@ export function postflopDist(c: PostflopCtx, prof: Profile, hs: number, ppot: nu
   const s = Math.pow(ehs, 1 + 0.7 * (c.nOpp - 1));
   const drawiness = clamp(ppot / 0.3, 0, 1);
   if (c.toCall === 0) {
-    const vT = prof.valueT + (c.street === 3 ? 0.04 : 0);
+    const adj = c.vsHero;
+    const vT = prof.valueT + (c.street === 3 ? 0.04 : 0) + (adj?.valueShift ?? 0);
     const pValue = sig((s - vT) / 0.035);
     const pSemi = c.street < 3 ? prof.aggr * 0.7 * drawiness : 0;
     const headsUp = c.nOpp === 1 ? 1 : 0.4;
-    const cbet = c.street === 1 && c.wasPFA ? prof.cbet * (c.wetness < 0.4 ? 1.05 : 0.75) * headsUp : 0;
-    const bluff = prof.bluff * (c.street === 3 ? 0.55 : 0.75) * headsUp * (c.wasPFA ? 1.2 : 0.8) * (c.ip ? 1.15 : 0.85);
+    const cbet = Math.min(1, c.street === 1 && c.wasPFA ? prof.cbet * (c.wetness < 0.4 ? 1.05 : 0.75) * headsUp * (adj?.bluff ?? 1) : 0);
+    const bluff = prof.bluff * (c.street === 3 ? 0.55 : 0.75) * headsUp * (c.wasPFA ? 1.2 : 0.8) * (c.ip ? 1.15 : 0.85) * (adj?.bluff ?? 1);
     let other: number;
     if (s < 0.4) other = Math.max(cbet, bluff * 0.7);
     else other = Math.max(cbet * 0.85, prof.aggr * 0.22);
@@ -351,7 +364,7 @@ export function postflopDist(c: PostflopCtx, prof: Profile, hs: number, ppot: nu
     const allinBet = c.betTo >= c.maxTo;
     return { fold: 0, passive: 1 - pBet, raise: allinBet ? 0 : pBet, allin: allinBet ? pBet : 0 };
   }
-  let callT = 0.42 + 0.95 * c.potOdds + (c.street === 3 ? 0.04 : c.street === 1 ? -0.03 : 0) + 0.05 * (c.nOpp - 1) - prof.callDown * 0.22;
+  let callT = 0.42 + 0.95 * c.potOdds + (c.street === 3 ? 0.04 : c.street === 1 ? -0.03 : 0) + 0.05 * (c.nOpp - 1) - prof.callDown * 0.22 + (c.vsHero?.callShift ?? 0);
   if (c.raisesThisStreet >= 2) callT += 0.08;
   const pCont = sig((s - callT) / 0.035);
   let pRaise = 0;
