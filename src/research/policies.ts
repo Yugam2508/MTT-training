@@ -199,5 +199,3 @@ export const seatVsChip: HeroPolicy = {
   label: 'Seat equity vs a chip-EV field',
   act: (t, s, rng) => seatDecision(t, s, t.heroIndex(), 'chip') ?? fieldReg.act(t, s, rng),
 };
-
-export const POLICIES: Record<string, HeroPolicy> = { chipNash, fieldReg, seatEV, seatVsChip };

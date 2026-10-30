@@ -5,13 +5,13 @@
  *   npx tsx scripts/sim-satellite.ts --runs 2000 --start beginning --policies chipNash,fieldReg,seatEV
  *
  * Every policy plays the same seeds (same fields, same opening deals), and the work is split over
- * one process per CPU. Results go to research/satellite-<start>.json and a summary is printed.
+ * one process per CPU. Results go to research/satellite-<start>[-<tag>].json and a summary is printed.
  */
 import { spawn } from 'node:child_process';
 import { cpus } from 'node:os';
 import { writeFileSync, mkdirSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
-import { POLICIES } from '../src/research/policies';
+import { POLICIES } from '../src/research/registry';
 import { runSatellite, satelliteConfig, summarize, type SimRun } from '../src/research/sim';
 
 const args = new Map<string, string>();
@@ -19,6 +19,7 @@ for (let k = 2; k < process.argv.length; k += 2) args.set(process.argv[k].replac
 const start = (args.get('start') ?? 'beginning') as 'beginning' | 'bubble';
 const runs = Number(args.get('runs') ?? 400);
 const first = Number(args.get('seed') ?? 1);
+const tag = args.get('tag') ? `-${args.get('tag')}` : '';
 const policies = (args.get('policies') ?? Object.keys(POLICIES).join(',')).split(',');
 
 if (args.has('worker')) {
@@ -75,5 +76,5 @@ async function main() {
     console.log(`${p} vs ${base}: ${mean >= 0 ? '+' : ''}${pct(mean)} seat rate (±${pct(paired[p].ci95)}, paired)`);
   }
   mkdirSync('research', { recursive: true });
-  writeFileSync(`research/satellite-${start}.json`, JSON.stringify({ start, runs, firstSeed: first, summaries, paired, ms: Date.now() - t0 }, null, 1));
+  writeFileSync(`research/satellite-${start}${tag}.json`, JSON.stringify({ start, runs, firstSeed: first, summaries, paired, ms: Date.now() - t0 }, null, 1));
 }

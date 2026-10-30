@@ -2,7 +2,9 @@ import { describe, it, expect } from 'vitest';
 import { Tournament } from '../tournament/tournament';
 import { chipOutcomes } from '../theory/pushfold';
 import { makeRng } from '../engine/rng';
-import { POLICIES, fieldReg, seatSpot, seatValues } from './policies';
+import { fieldReg, seatSpot, seatValues } from './policies';
+import { POLICIES } from './registry';
+import { exploitDecision, stylePosterior } from './exploit';
 import { runSatellite, satelliteConfig, summarize } from './sim';
 
 describe('satellite research', () => {
@@ -41,5 +43,30 @@ describe('satellite research', () => {
     const b = runSatellite(fieldReg, satelliteConfig('bubble', 5));
     expect(a).toEqual(b);
     expect(summarize('x', [a, b]).runs).toBe(2);
+  });
+
+  it('the exploit bot sees every opponent style as possible and decides in every push/fold spot', () => {
+    const t = new Tournament(satelliteConfig('bubble', 2));
+    const rng = makeRng(2);
+    let decided = 0;
+    while (!t.finished && !t.heroOut && decided < 6) {
+      const s = t.startRound();
+      if (!s) break;
+      while (!s.done) {
+        t.runBots();
+        if (!t.isHeroTurn()) continue;
+        const hi = t.heroIndex();
+        for (const p of s.players) if (!p.isHero) {
+          const post = stylePosterior(t, p.id, 'read');
+          expect(post.reduce((a, [, w]) => a + w, 0)).toBeGreaterThan(0.9);
+          expect(stylePosterior(t, p.id, 'oracle')).toEqual([[t.profileOf(p.id), 1]]);
+        }
+        const a = exploitDecision(t, s, hi, 'read');
+        if (a) decided++;
+        t.heroAct(a ?? fieldReg.act(t, s, rng));
+      }
+      t.finishRound();
+    }
+    expect(decided).toBeGreaterThan(0);
   });
 });
