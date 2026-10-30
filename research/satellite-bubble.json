@@ -1,0 +1,32 @@
+{
+ "start": "bubble",
+ "runs": 40,
+ "firstSeed": 1,
+ "summaries": [
+  {
+   "policy": "chipNash",
+   "runs": 40,
+   "seats": 23,
+   "rate": 0.575,
+   "ci95": 0.15319848236846212,
+   "avgPlace": 8.025,
+   "avgHands": 4.425
+  },
+  {
+   "policy": "seatVsChip",
+   "runs": 40,
+   "seats": 29,
+   "rate": 0.725,
+   "ci95": 0.1383762082151408,
+   "avgPlace": 8.4,
+   "avgHands": 6.075
+  }
+ ],
+ "paired": {
+  "seatVsChip": {
+   "diff": 0.15,
+   "ci95": 0.1796095480301361
+  }
+ },
+ "ms": 7191
+}

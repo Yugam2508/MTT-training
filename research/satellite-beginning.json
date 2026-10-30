@@ -1,0 +1,45 @@
+{
+ "start": "beginning",
+ "runs": 2000,
+ "firstSeed": 1,
+ "summaries": [
+  {
+   "policy": "chipNash",
+   "runs": 2000,
+   "seats": 194,
+   "rate": 0.097,
+   "ci95": 0.0129709210467106,
+   "avgPlace": 47.705,
+   "avgHands": 27.343
+  },
+  {
+   "policy": "fieldReg",
+   "runs": 2000,
+   "seats": 249,
+   "rate": 0.1245,
+   "ci95": 0.01446951000552541,
+   "avgPlace": 47.6065,
+   "avgHands": 27.737
+  },
+  {
+   "policy": "seatEV",
+   "runs": 2000,
+   "seats": 224,
+   "rate": 0.112,
+   "ci95": 0.013821544226315667,
+   "avgPlace": 46.062,
+   "avgHands": 28.353
+  }
+ ],
+ "paired": {
+  "fieldReg": {
+   "diff": 0.0275,
+   "ci95": 0.017188912832467724
+  },
+  "seatEV": {
+   "diff": 0.015,
+   "ci95": 0.017740811373612476
+  }
+ },
+ "ms": 1002714
+}
