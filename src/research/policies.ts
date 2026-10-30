@@ -7,9 +7,12 @@
  * - seatEV:   push/fold re-solved for seat equity: every short-stack shove, re-shove and call is
  *             the equilibrium for that exact spot, valued by each player's chance of a seat (ICM over
  *             the whole field with the satellite's flat payouts). Deeper spots play like fieldReg.
+ * - seatVsChip: the hero plays for seats but expects opponents to play chip-EV Nash (to ignore the
+ *             bubble), and best-responds to that. Deeper spots play like fieldReg.
  */
 import { type HandState, type PlayerAction, legalActions } from '../engine/hand';
-import { classOfCards } from '../engine/combos';
+import { classOfCards, NUM_CLASSES, NONCONFLICT } from '../engine/combos';
+import { preflopMatrix, eqVsRange } from '../engine/preflopMatrix';
 import type { Rng } from '../engine/rng';
 import type { Range } from '../engine/ranges';
 import { chooseBotAction } from '../bots/bot';
@@ -137,19 +140,52 @@ function blindOf(s: HandState, h: number): number {
   return a ? a.add : 0;
 }
 
-export function seatDecision(t: Tournament, s: HandState, hi: number): PlayerAction | null {
+/** EV(push) - EV(fold) for hand class `h` against fixed call ranges, in the units of `values`. */
+export function pushGainVs(values: PFOutcomeValues, calls: Range[], priors: (Range | null)[], h: number): number {
+  const m = preflopMatrix();
+  const base = h * NUM_CLASSES;
+  let pReach = 1, ev = 0;
+  calls.forEach((cr, i) => {
+    const pr = priors[i];
+    let num = 0, inR = 0, all = 0;
+    for (let v = 0; v < NUM_CLASSES; v++) {
+      const c = pr ? NONCONFLICT[base + v] * pr[v] : NONCONFLICT[base + v];
+      all += c;
+      if (cr[v] > 0) { const cw = c * cr[v]; inR += cw; num += cw * m[base + v]; }
+    }
+    const f = all > 0 ? inR / all : 0;
+    if (f > 0) { const eq = num / inR; ev += pReach * f * (eq * values.win[i][0] + (1 - eq) * values.lose[i][0]); }
+    pReach *= 1 - f;
+  });
+  return ev + pReach * values.steal[0] - values.fold[0];
+}
+
+/**
+ * @param opponents 'seat': everyone plays the seat-equity equilibrium. 'chip': opponents play the
+ * chip-EV equilibrium (they ignore the bubble) and the hero best-responds in seat equity.
+ */
+export function seatDecision(t: Tournament, s: HandState, hi: number, opponents: 'seat' | 'chip' = 'seat'): PlayerAction | null {
   if (s.street !== 0) return null;
   const found = seatSpot(s, hi);
   if (!found) return null;
   const { ss, heroAt } = found;
   const values = seatValues(t, s, ss, t.handNo * 7919 + s.actions.length);
-  const res = solvePushFold(values, 40, 0.3, ss.priors);
   const p = s.players[hi];
   const h = classOfCards(p.cards[0], p.cards[1]);
   const L = legalActions(s);
   const passive: PlayerAction = L.canCheck ? { type: 'check' } : { type: 'fold' };
-  if (heroAt === 0) return res.push[h] > 0 && L.canRaise ? { type: 'raise', to: L.maxRaiseTo } : passive;
-  return res.calls[heroAt - 1][h] > 0 ? { type: 'call' } : passive;
+  const shove: PlayerAction = L.canRaise ? { type: 'raise', to: L.maxRaiseTo } : { type: 'call' };
+  if (opponents === 'seat') {
+    const res = solvePushFold(values, 40, 0.3, ss.priors);
+    if (heroAt === 0) return res.push[h] > 0 ? shove : passive;
+    return res.calls[heroAt - 1][h] > 0 ? { type: 'call' } : passive;
+  }
+  const chip = solvePushFold(chipOutcomes(ss.spot), 40, 0.3, ss.priors);
+  if (heroAt === 0) return pushGainVs(values, chip.calls, ss.priors, h) > 0 ? shove : passive;
+  // calling: the shover pushes their chip-EV range; call when it gains seat equity against it
+  const i = heroAt - 1;
+  const eq = eqVsRange(h, chip.push);
+  return eq * values.lose[i][i + 1] + (1 - eq) * values.win[i][i + 1] > values.steal[i + 1] ? { type: 'call' } : passive;
 }
 
 export const seatEV: HeroPolicy = {
@@ -158,4 +194,10 @@ export const seatEV: HeroPolicy = {
   act: (t, s, rng) => seatDecision(t, s, t.heroIndex()) ?? fieldReg.act(t, s, rng),
 };
 
-export const POLICIES: Record<string, HeroPolicy> = { chipNash, fieldReg, seatEV };
+export const seatVsChip: HeroPolicy = {
+  key: 'seatVsChip',
+  label: 'Seat equity vs a chip-EV field',
+  act: (t, s, rng) => seatDecision(t, s, t.heroIndex(), 'chip') ?? fieldReg.act(t, s, rng),
+};
+
+export const POLICIES: Record<string, HeroPolicy> = { chipNash, fieldReg, seatEV, seatVsChip };
