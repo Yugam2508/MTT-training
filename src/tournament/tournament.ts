@@ -489,11 +489,14 @@ export class Tournament {
   stepBot(): boolean {
     const s = this.current;
     if (!s || s.done || s.toAct === this.heroIndex()) return false;
-    const id = this.currentSeatIds[s.toAct];
-    const p = this.players.get(id)!;
-    const prof = PROFILES[p.profile as ProfileKey];
-    applyAction(s, chooseBotAction(s, s.toAct, prof, this.botCtx(id), this.rng));
+    applyAction(s, this.botAction(s, this.currentSeatIds[s.toAct]));
     return true;
+  }
+
+  /** The action a bot takes; research code overrides this to seat other kinds of opponents. */
+  protected botAction(s: HandState, id: string): PlayerAction {
+    const prof = PROFILES[this.players.get(id)!.profile as ProfileKey];
+    return chooseBotAction(s, s.toAct, prof, this.botCtx(id), this.rng);
   }
 
   /** Run all bot actions until the hero must act or the hand ends. */
@@ -547,9 +550,7 @@ export class Tournament {
     const { state, seatIds } = built;
     let guard = 0;
     while (!state.done && guard++ < 400) {
-      const id = seatIds[state.toAct];
-      const prof = PROFILES[this.players.get(id)!.profile as ProfileKey];
-      applyAction(state, chooseBotAction(state, state.toAct, prof, this.botCtx(id), this.rng));
+      applyAction(state, this.botAction(state, seatIds[state.toAct]));
     }
     state.players.forEach((hp, k) => { this.players.get(seatIds[k])!.stack = hp.stack; });
   }

@@ -19,6 +19,8 @@ for (let k = 2; k < process.argv.length; k += 2) args.set(process.argv[k].replac
 const start = (args.get('start') ?? 'beginning') as 'beginning' | 'bubble';
 const runs = Number(args.get('runs') ?? 400);
 const first = Number(args.get('seed') ?? 1);
+// --icm <0..1>: opponents fitted to real players, with this much bubble awareness
+const field = args.has('icm') ? { icmAware: Number(args.get('icm')) } : undefined;
 const tag = args.get('tag') ? `-${args.get('tag')}` : '';
 const policies = (args.get('policies') ?? Object.keys(POLICIES).join(',')).split(',');
 
@@ -26,14 +28,14 @@ if (args.has('worker')) {
   // worker: one policy over a slice of seeds, one JSON line per run
   const policy = POLICIES[args.get('worker')!];
   const [a, b] = args.get('seeds')!.split('-').map(Number);
-  for (let seed = a; seed <= b; seed++) process.stdout.write(JSON.stringify(runSatellite(policy, satelliteConfig(start, seed))) + '\n');
+  for (let seed = a; seed <= b; seed++) process.stdout.write(JSON.stringify(runSatellite(policy, satelliteConfig(start, seed), field)) + '\n');
 } else {
   await main();
 }
 
 function work(policy: string, a: number, b: number, onRun: () => void): Promise<SimRun[]> {
   return new Promise((resolve, reject) => {
-    const child = spawn(process.execPath, ['--import', 'tsx', fileURLToPath(import.meta.url), '--worker', policy, '--seeds', `${a}-${b}`, '--start', start], { stdio: ['ignore', 'pipe', 'inherit'] });
+    const child = spawn(process.execPath, ['--import', 'tsx', fileURLToPath(import.meta.url), '--worker', policy, '--seeds', `${a}-${b}`, '--start', start, ...(field ? ['--icm', String(field.icmAware)] : [])], { stdio: ['ignore', 'pipe', 'inherit'] });
     const out: SimRun[] = [];
     let buf = '';
     child.stdout.on('data', (d) => {
@@ -62,7 +64,7 @@ async function main() {
   }
   const summaries = policies.map((p) => summarize(p, results[p]));
   const pct = (x: number) => (x * 100).toFixed(1) + '%';
-  console.log(`\nSPC 1B satellite (${start === 'bubble' ? 'from the bubble, 15 left' : 'full, 100 runners'}), ${runs} runs per policy, seeds ${first}-${first + runs - 1}\n`);
+  console.log(`\nSPC 1B satellite (${start === 'bubble' ? 'from the bubble, 15 left' : 'full, 100 runners'}), ${runs} runs per policy, seeds ${first}-${first + runs - 1}${field ? `, data-fitted field, ICM awareness ${field.icmAware}` : ''}\n`);
   console.log('policy      seat rate   ±95%    avg place  avg hands');
   for (const s of summaries) console.log(`${s.policy.padEnd(11)} ${pct(s.rate).padStart(9)}  ${pct(s.ci95).padStart(6)}  ${s.avgPlace.toFixed(1).padStart(9)}  ${s.avgHands.toFixed(1).padStart(9)}`);
   // paired differences: same seeds, so the shared luck cancels
@@ -76,5 +78,5 @@ async function main() {
     console.log(`${p} vs ${base}: ${mean >= 0 ? '+' : ''}${pct(mean)} seat rate (±${pct(paired[p].ci95)}, paired)`);
   }
   mkdirSync('research', { recursive: true });
-  writeFileSync(`research/satellite-${start}${tag}.json`, JSON.stringify({ start, runs, firstSeed: first, summaries, paired, ms: Date.now() - t0 }, null, 1));
+  writeFileSync(`research/satellite-${start}${tag}.json`, JSON.stringify({ start, runs, field, firstSeed: first, summaries, paired, ms: Date.now() - t0 }, null, 1));
 }

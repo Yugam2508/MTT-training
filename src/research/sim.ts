@@ -3,6 +3,7 @@ import { makeRng } from '../engine/rng';
 import { Tournament } from '../tournament/tournament';
 import { PRESETS, type TournamentConfig } from '../tournament/structure';
 import type { HeroPolicy } from './policies';
+import { DataTournament, type DataField } from './dataBots';
 
 export interface SimRun { seed: number; seat: boolean; place: number; hands: number }
 
@@ -14,10 +15,11 @@ export function satelliteConfig(start: 'beginning' | 'bubble', seed: number): To
 
 /**
  * One satellite to the end (or until the hero busts). The same seed deals the same field and the
- * same cards for every policy until the hero's choices change what happens.
+ * same cards for every policy until the hero's choices change what happens. With `field`, the
+ * opponents are bots fitted to real players (see dataBots.ts) instead of the hand-made profiles.
  */
-export function runSatellite(policy: HeroPolicy, cfg: TournamentConfig): SimRun {
-  const t = new Tournament(cfg);
+export function runSatellite(policy: HeroPolicy, cfg: TournamentConfig, field?: DataField): SimRun {
+  const t = field ? new DataTournament(cfg, field) : new Tournament(cfg);
   const rng = makeRng(cfg.seed ^ 0x9e3779b9);
   let guard = 0;
   while (!t.finished && !t.heroOut && guard++ < 5000) {
