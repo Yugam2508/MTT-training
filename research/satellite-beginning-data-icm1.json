@@ -1,0 +1,61 @@
+{
+ "start": "beginning",
+ "runs": 2000,
+ "field": {
+  "icmAware": 1
+ },
+ "firstSeed": 1,
+ "summaries": [
+  {
+   "policy": "chipNash",
+   "runs": 2000,
+   "seats": 100,
+   "rate": 0.05,
+   "ci95": 0.009551858457912784,
+   "avgPlace": 53.379,
+   "avgHands": 25.8575
+  },
+  {
+   "policy": "fieldReg",
+   "runs": 2000,
+   "seats": 121,
+   "rate": 0.0605,
+   "ci95": 0.010448817722594265,
+   "avgPlace": 53.3205,
+   "avgHands": 25.9985
+  },
+  {
+   "policy": "seatEV",
+   "runs": 2000,
+   "seats": 113,
+   "rate": 0.0565,
+   "ci95": 0.010118968633215542,
+   "avgPlace": 52.217,
+   "avgHands": 26.756
+  },
+  {
+   "policy": "seatVsChip",
+   "runs": 2000,
+   "seats": 143,
+   "rate": 0.0715,
+   "ci95": 0.011292368670921083,
+   "avgPlace": 51.9085,
+   "avgHands": 27.244
+  }
+ ],
+ "paired": {
+  "fieldReg": {
+   "diff": 0.0105,
+   "ci95": 0.006104298733803479
+  },
+  "seatEV": {
+   "diff": 0.0065,
+   "ci95": 0.012279130047253596
+  },
+  "seatVsChip": {
+   "diff": 0.0215,
+   "ci95": 0.013080874008735578
+  }
+ },
+ "ms": 988174
+}
