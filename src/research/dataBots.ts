@@ -8,6 +8,10 @@
  * The data comes from cash games, where there is no bubble, so ICM awareness is a dial
  * (`icmAware`, 0 = the data as measured): it tightens shoves and calls by the player's bubble factor.
  * After the flop each style plays like the closest hand-made profile.
+ *
+ * Real players don't order their hands perfectly, so each decision adds noise to the hand's strength
+ * position before comparing it with the threshold; the noise per style (styleNoise.json) is fitted
+ * to the hands shown at real all-ins (research/handhq/calibrate.py).
  */
 import { type HandState, type PlayerAction, legalActions } from '../engine/hand';
 import { NUM_CLASSES, classOfCards, classComboCount } from '../engine/combos';
@@ -21,6 +25,7 @@ import { makeRng } from '../engine/rng';
 import { Tournament } from '../tournament/tournament';
 import type { TournamentConfig } from '../tournament/structure';
 import FREQS from './styleFreqs.json';
+import NOISE from './styleNoise.json';
 
 export interface StyleFreqs {
   styles: { style: number; players: number; hands: number; vpip: number; pfr: number }[];
@@ -52,19 +57,56 @@ export function styleFreqs(s: HandState, i: number, style: number): number[] {
   return F.freq[style][facing][pos][eff][big][size];
 }
 
-/** Hand classes ordered from strongest, with the fraction of all combos above each. */
-function ladder(order: number[]): Float64Array {
-  const at = new Float64Array(NUM_CLASSES);
+/** Calibrated ordering noise per style, in shares of all hands. */
+export const STYLE_SIGMA: number[] = (NOISE as { sigma: number[] }).sigma;
+
+interface Ladder { mid: Float64Array; w: Float64Array }
+/** Hand classes ordered from strongest: each class's middle position in the share of all combos. */
+function ladder(order: number[]): Ladder {
+  const mid = new Float64Array(NUM_CLASSES), w = new Float64Array(NUM_CLASSES);
   let cum = 0;
-  for (const h of order) { at[h] = cum; cum += classComboCount(h) / 1326; }
-  return at;
+  for (const h of order) { w[h] = classComboCount(h) / 1326; mid[h] = cum + w[h] / 2; cum += w[h]; }
+  return { mid, w };
 }
-let openLadder: Float64Array | null = null, allinLadder: Float64Array | null = null;
+let openLadder: Ladder | null = null, allinLadder: Ladder | null = null;
+
+function normCdf(x: number): number {
+  const z = Math.abs(x) / Math.SQRT2, t = 1 / (1 + 0.3275911 * z);
+  const y = 1 - (((((1.061405429 * t - 1.453152027) * t) + 1.421413741) * t - 0.284496736) * t + 0.254829592) * t * Math.exp(-z * z);
+  return 0.5 * (1 + Math.sign(x) * y);
+}
+
+/** The noisy-strength cut-off that keeps a share `q` of hands, for noise `sigma`. */
+const thresholds = new Map<string, number>();
+function threshold(l: Ladder, which: string, q: number, sigma: number): number {
+  if (q <= 0) return -Infinity;
+  if (q >= 1) return Infinity;
+  if (sigma <= 0) return q;
+  const key = `${which}|${Math.round(q * 1000)}|${sigma}`;
+  let t = thresholds.get(key);
+  if (t === undefined) {
+    let lo = -1, hi = 2;
+    for (let k = 0; k < 40; k++) {
+      const mid = (lo + hi) / 2;
+      let kept = 0;
+      for (let h = 0; h < NUM_CLASSES; h++) kept += l.w[h] * normCdf((mid - l.mid[h]) / sigma);
+      if (kept < q) lo = mid; else hi = mid;
+    }
+    t = (lo + hi) / 2;
+    thresholds.set(key, t);
+  }
+  return t;
+}
+
+function gauss(rng: Rng): number {
+  const a = 1 - rng.next(), b = rng.next();
+  return Math.sqrt(-2 * Math.log(a)) * Math.cos(2 * Math.PI * b);
+}
 
 /**
  * What a data-style bot does. `bf` is its bubble factor and `icmAware` how much it reacts to it.
  */
-export function dataStyleAction(s: HandState, i: number, style: number, bf: number, icmAware: number, rng: Rng): PlayerAction {
+export function dataStyleAction(s: HandState, i: number, style: number, bf: number, icmAware: number, rng: Rng, sigma = STYLE_SIGMA[style]): PlayerAction {
   const L = legalActions(s);
   if (s.street !== 0) return chooseBotAction(s, i, PROFILES[STYLE_POSTFLOP[style]], { bf: 1 + (bf - 1) * icmAware }, rng);
   const [, call, raise, allin] = styleFreqs(s, i, style);
@@ -79,21 +121,26 @@ export function dataStyleAction(s: HandState, i: number, style: number, bf: numb
   const p = s.players[i];
   const h = classOfCards(p.cards[0], p.cards[1]);
   // facing a shove only raw equity matters; otherwise playability
-  const above = (facingShove || sp.effBB <= 12 ? allinLadder : openLadder)[h];
+  const shortOrShove = facingShove || sp.effBB <= 12;
+  const lad = shortOrShove ? allinLadder : openLadder;
+  const which = shortOrShove ? 'eq' : 'play';
+  const pos = lad.mid[h] + sigma * gauss(rng);
+  const inAggr = pos < threshold(lad, which, aggr, sigma);
+  const inCont = pos < threshold(lad, which, aggr + passive, sigma);
   const myTotal = p.stack + p.bet;
   const bb = s.cfg.bb;
   if (facingShove) {
     // calling (or re-shoving, the same here) with the top of the range
-    return above < aggr + passive ? { type: 'call' } : L.canCheck ? { type: 'check' } : { type: 'fold' };
+    return inCont ? { type: 'call' } : L.canCheck ? { type: 'check' } : { type: 'fold' };
   }
-  if (above < aggr) {
+  if (inAggr) {
     // the strongest share of aggressive hands shoves, the rest raise
     const shove = allin / Math.max(1e-9, raise + allin);
     const raiseTo = sp.raises === 0 ? Math.round(bb * (2.5 + sp.limpers)) : Math.round(sp.lastRaiseToBB * bb * 3);
     if (rng.next() < shove || raiseTo >= myTotal * 0.4) return bucketToAction('allin', 0, L);
     return bucketToAction('raise', raiseTo, L);
   }
-  if (above < aggr + passive) return bucketToAction('passive', 0, L);
+  if (inCont) return bucketToAction('passive', 0, L);
   return L.canCheck ? { type: 'check' } : { type: 'fold' };
 }
 
@@ -102,6 +149,8 @@ export interface DataField {
   weights?: number[];
   /** 0 = ICM-blind as measured in cash games, 1 = fully reacts to the bubble factor. */
   icmAware: number;
+  /** false = perfect hand ordering (no calibrated noise), for comparison. */
+  noise?: boolean;
 }
 
 /** A tournament whose opponents are data-style bots. */
@@ -127,6 +176,7 @@ export class DataTournament extends Tournament {
 
   protected botAction(s: HandState, id: string): PlayerAction {
     const raw = this.bf.get(id) ?? 1;
-    return dataStyleAction(s, s.toAct, this.styleOf.get(id)!, raw, this.field.icmAware, this.rng);
+    const style = this.styleOf.get(id)!;
+    return dataStyleAction(s, s.toAct, style, raw, this.field.icmAware, this.rng, this.field.noise === false ? 0 : STYLE_SIGMA[style]);
   }
 }
