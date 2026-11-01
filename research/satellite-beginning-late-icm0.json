@@ -1,0 +1,48 @@
+{
+ "start": "beginning",
+ "runs": 2000,
+ "field": {
+  "icmAware": 0
+ },
+ "firstSeed": 1,
+ "summaries": [
+  {
+   "policy": "style0",
+   "runs": 2000,
+   "seats": 244,
+   "rate": 0.122,
+   "ci95": 0.014343932961360354,
+   "avgPlace": 44.756,
+   "avgHands": 35.0585
+  },
+  {
+   "policy": "seatStyle0late20",
+   "runs": 2000,
+   "seats": 261,
+   "rate": 0.1305,
+   "ci95": 0.014763221050976646,
+   "avgPlace": 44.747,
+   "avgHands": 34.944
+  },
+  {
+   "policy": "seatStyle0late30",
+   "runs": 2000,
+   "seats": 252,
+   "rate": 0.126,
+   "ci95": 0.014543939603834995,
+   "avgPlace": 45.254,
+   "avgHands": 34.335
+  }
+ ],
+ "paired": {
+  "seatStyle0late20": {
+   "diff": 0.0085,
+   "ci95": 0.012354802417334939
+  },
+  "seatStyle0late30": {
+   "diff": 0.004,
+   "ci95": 0.01512146807020709
+  }
+ },
+ "ms": 634284
+}
