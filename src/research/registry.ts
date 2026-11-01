@@ -33,8 +33,22 @@ function seatStyle(k: number): HeroPolicy {
   };
 }
 
+/**
+ * The hybrid, but the seat push/fold only switches on once `left` or fewer players remain: before
+ * that the real-player style plays every hand, short stacks included.
+ */
+function seatStyleLate(k: number, left: number): HeroPolicy {
+  const base = dataStyle(k);
+  return {
+    key: `seatStyle${k}late${left}`,
+    label: `Seat push/fold from ${left} left + ${STYLE_LABEL[k]}`,
+    act: (t, s, rng) => (t.alive().length <= left ? seatDecision(t, s, t.heroIndex(), 'chip') : null) ?? base.act(t, s, rng),
+  };
+}
+
 export const POLICIES: Record<string, HeroPolicy> = {
   chipNash, fieldReg, seatEV, seatVsChip, exploitOracle, exploitRead,
   style0: dataStyle(0), style1: dataStyle(1), style2: dataStyle(2), style3: dataStyle(3),
   seatStyle0: seatStyle(0), seatStyle1: seatStyle(1),
+  seatStyle0late20: seatStyleLate(0, 20), seatStyle0late30: seatStyleLate(0, 30),
 };
