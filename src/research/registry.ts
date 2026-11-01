@@ -1,5 +1,26 @@
 /** Every hero policy the satellite research can run, by key. */
 import { chipNash, fieldReg, seatEV, seatVsChip, type HeroPolicy } from './policies';
 import { exploitOracle, exploitRead } from './exploit';
+import { DataTournament, dataStyleAction, STYLE_SIGMA, STYLE_LABEL } from './dataBots';
+import { HERO_ID } from '../tournament/tournament';
 
-export const POLICIES: Record<string, HeroPolicy> = { chipNash, fieldReg, seatEV, seatVsChip, exploitOracle, exploitRead };
+/**
+ * A real-player style in the hero seat (a control): it plays exactly like the field's bots of that
+ * style, so with a data-fitted field its seat rate shows how that style fares, and the
+ * population-weighted average of the styles should come out near the 10% an average entrant gets.
+ */
+function dataStyle(k: number): HeroPolicy {
+  return {
+    key: `style${k}`,
+    label: `${STYLE_LABEL[k]} (data style in the hero seat)`,
+    act: (t, s, rng) => {
+      const icm = t instanceof DataTournament ? t.field.icmAware : 0;
+      return dataStyleAction(s, t.heroIndex(), k, t.bf.get(HERO_ID) ?? 1, icm, rng, STYLE_SIGMA[k]);
+    },
+  };
+}
+
+export const POLICIES: Record<string, HeroPolicy> = {
+  chipNash, fieldReg, seatEV, seatVsChip, exploitOracle, exploitRead,
+  style0: dataStyle(0), style1: dataStyle(1), style2: dataStyle(2), style3: dataStyle(3),
+};
