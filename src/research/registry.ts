@@ -1,7 +1,11 @@
 /** Every hero policy the satellite research can run, by key. */
 import { chipNash, fieldReg, seatEV, seatVsChip, seatDecision, type HeroPolicy } from './policies';
 import { exploitOracle, exploitRead } from './exploit';
-import { DataTournament, dataStyleAction, STYLE_SIGMA, STYLE_LABEL } from './dataBots';
+import { DataTournament, dataStyleAction, fieldShare, STYLE_SIGMA, STYLE_LABEL } from './dataBots';
+import type { FieldModel } from './policies';
+import { topPercentRange } from '../engine/ranges';
+import { classesByRawEquity } from '../engine/preflopMatrix';
+import { positionOf } from '../theory/spot';
 import { HERO_ID } from '../tournament/tournament';
 
 /**
@@ -46,9 +50,25 @@ function seatStyleLate(k: number, left: number): HeroPolicy {
   };
 }
 
+/**
+ * The field as the hero reads it without knowing who is who: every opponent calls and shoves with
+ * the population's measured frequencies for their seat and stack, taking the strongest hands.
+ */
+const fieldModel: FieldModel = {
+  callRange: (s, h, effBB) => topPercentRange(100 * fieldShare('callAllIn', positionOf(s, h), effBB, s.players.length), classesByRawEquity()),
+  shoveRange: (s, h, effBB) => topPercentRange(100 * Math.max(0.02, fieldShare('openShove', positionOf(s, h), effBB, s.players.length)), classesByRawEquity()),
+};
+
+/** Seat push/fold that best-responds to the field's measured ranges; `base` plays everything else. */
+function fieldSeat(key: string, label: string, base: HeroPolicy): HeroPolicy {
+  return { key, label, act: (t, s, rng) => seatDecision(t, s, t.heroIndex(), fieldModel) ?? base.act(t, s, rng) };
+}
+
 export const POLICIES: Record<string, HeroPolicy> = {
   chipNash, fieldReg, seatEV, seatVsChip, exploitOracle, exploitRead,
   style0: dataStyle(0), style1: dataStyle(1), style2: dataStyle(2), style3: dataStyle(3),
   seatStyle0: seatStyle(0), seatStyle1: seatStyle(1),
   seatStyle0late20: seatStyleLate(0, 20), seatStyle0late30: seatStyleLate(0, 30),
+  fieldSeatReg: fieldSeat('fieldSeatReg', 'Field-aware seat push/fold + regular', fieldReg),
+  fieldSeatStyle0: fieldSeat('fieldSeatStyle0', 'Field-aware seat push/fold + tight-passive style', dataStyle(0)),
 };

@@ -57,6 +57,24 @@ export function styleFreqs(s: HandState, i: number, style: number): number[] {
   return F.freq[style][facing][pos][eff][big][size];
 }
 
+/**
+ * How often the field (styles mixed by `weights`) continues facing an all-in, or open-shoves, at a
+ * position, effective stack and table size: the population's measured frequency.
+ */
+export function fieldShare(kind: 'callAllIn' | 'openShove', pos: string, effBB: number, players: number, weights?: number[]): number {
+  const w = weights ?? F.styles.map((x) => x.players);
+  const tot = w.reduce((a, b) => a + b, 0);
+  const pi = Math.max(0, F.axes.pos.indexOf(pos));
+  const e = bin(F.axes.effBB, effBB);
+  const big = players >= 7 ? 1 : 0;
+  let q = 0;
+  w.forEach((wk, k) => {
+    const f = F.freq[k][kind === 'callAllIn' ? 4 : 0][pi][e][big][0];
+    q += (wk / tot) * (kind === 'callAllIn' ? f[1] + f[2] + f[3] : f[3]);
+  });
+  return q;
+}
+
 /** Calibrated ordering noise per style, in shares of all hands. */
 export const STYLE_SIGMA: number[] = (NOISE as { sigma: number[] }).sigma;
 

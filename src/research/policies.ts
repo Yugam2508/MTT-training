@@ -164,7 +164,14 @@ export function pushGainVs(values: PFOutcomeValues, calls: Range[], priors: (Ran
  * @param opponents 'seat': everyone plays the seat-equity equilibrium. 'chip': opponents play the
  * chip-EV equilibrium (they ignore the bubble) and the hero best-responds in seat equity.
  */
-export function seatDecision(t: Tournament, s: HandState, hi: number, opponents: 'seat' | 'chip' = 'seat'): PlayerAction | null {
+export interface FieldModel {
+  /** The range player `h` calls an all-in with in this spot. */
+  callRange(s: HandState, h: number, effBB: number): Range;
+  /** The range player `h` open-shoves with in this spot. */
+  shoveRange(s: HandState, h: number, effBB: number): Range;
+}
+
+export function seatDecision(t: Tournament, s: HandState, hi: number, opponents: 'seat' | 'chip' | FieldModel = 'seat'): PlayerAction | null {
   if (s.street !== 0) return null;
   const found = seatSpot(s, hi);
   if (!found) return null;
@@ -179,6 +186,19 @@ export function seatDecision(t: Tournament, s: HandState, hi: number, opponents:
     const res = solvePushFold(values, 40, 0.3, ss.priors);
     if (heroAt === 0) return res.push[h] > 0 ? shove : passive;
     return res.calls[heroAt - 1][h] > 0 ? { type: 'call' } : passive;
+  }
+  if (typeof opponents === 'object') {
+    // best response in seat equity to the field's measured calling and shoving ranges
+    const bb = s.cfg.bb;
+    const eff = (a: number, b: number) => Math.min(total(s, a), total(s, b)) / bb;
+    if (heroAt === 0) {
+      const calls = ss.order.slice(1).map((c) => opponents.callRange(s, c, eff(hi, c)));
+      return pushGainVs(values, calls, ss.priors, h) > 0 ? shove : passive;
+    }
+    const i = heroAt - 1, j = ss.order[0];
+    const push = ss.priors[i] ?? opponents.shoveRange(s, j, eff(j, hi));
+    const eq = eqVsRange(h, push);
+    return eq * values.lose[i][i + 1] + (1 - eq) * values.win[i][i + 1] > values.steal[i + 1] ? { type: 'call' } : passive;
   }
   const chip = solvePushFold(chipOutcomes(ss.spot), 40, 0.3, ss.priors);
   if (heroAt === 0) return pushGainVs(values, chip.calls, ss.priors, h) > 0 ? shove : passive;
