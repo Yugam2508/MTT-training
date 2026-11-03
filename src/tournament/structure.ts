@@ -151,11 +151,18 @@ export interface Preset {
 
 /**
  * The SPC XXIII Main Event 1B satellite (Saturday 11am): S$60, no fee, hyper-turbo, 10 seats guaranteed,
- * each a S$530+70 Flight 1B entry with the 10,000-chip add-on. Its structure isn't published: 100 entries
- * (exactly the guarantee) and 10-minute levels are assumptions.
+ * each a S$530+70 Flight 1B entry with the 10,000-chip add-on. Official structure (Natural8 "ME Satellite"):
+ * 2,000 chips, 25/50 start, 10-minute levels, no antes, late registration and re-entry to the end of
+ * Level 6. 100 entries (exactly the guarantee) and ~5 live hands per level are assumptions.
  */
+export const SPC_SATELLITE_SHEET: ScheduleItem[] = ([
+  [25, 50], [50, 100], [100, 200], [200, 400], [300, 600], [500, 1000],
+  [700, 1400], [1000, 2000], [2000, 4000], [3000, 6000], [4000, 8000], [5000, 10000],
+] as [number, number][]).map(([sb, bb]) => ({ sb, bb, ante: 0 }));
+
 const SPC_SATELLITE: Omit<TournamentConfig, 'seed' | 'start' | 'heroStack'> = {
-  name: 'SPC Main Event 1B Satellite', entrants: 100, tableSize: 9, startingStack: 5000, handsPerLevel: 4, levelMinutes: 10,
+  name: 'SPC Main Event 1B Satellite', entrants: 100, tableSize: 9, startingStack: 2000, handsPerLevel: 5, levelMinutes: 10,
+  schedule: SPC_SATELLITE_SHEET,
   buyIn: 60, currency: 'S$', event: 'satellite', satellite: { seatValue: 600, guaranteedSeats: 10, target: 'SPC Main Event Flight 1B' }, field: 'soft',
 };
 

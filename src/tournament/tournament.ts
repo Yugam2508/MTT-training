@@ -300,7 +300,7 @@ export class Tournament {
   event(): EventType { return this.cfg.event ?? eventOfName(this.cfg.name); }
   level(): Level { return levelAt(this.cfg, this.levelIndex); }
   money(x: number, digits = 2) { return `${this.cfg.currency ?? '$'}${x.toFixed(digits)}`; }
-  fmtLevel(l: Level) { return `${l.sb.toLocaleString()}/${l.bb.toLocaleString()} ante ${l.ante.toLocaleString()}`; }
+  fmtLevel(l: Level) { return `${l.sb.toLocaleString()}/${l.bb.toLocaleString()}${l.ante ? ` ante ${l.ante.toLocaleString()}` : ''}`; }
   alive(): TPlayer[] { return [...this.players.values()].filter((p) => !p.busted); }
   playersLeft() { return this.alive().length; }
   hero(): TPlayer { return this.players.get(HERO_ID)!; }

@@ -60,8 +60,11 @@ const fieldModel: FieldModel = {
 };
 
 /** Seat push/fold that best-responds to the field's measured ranges; `base` plays everything else. */
-function fieldSeat(key: string, label: string, base: HeroPolicy): HeroPolicy {
-  return { key, label, act: (t, s, rng) => seatDecision(t, s, t.heroIndex(), fieldModel) ?? base.act(t, s, rng) };
+function fieldSeat(key: string, label: string, base: HeroPolicy, fromLeft = Infinity): HeroPolicy {
+  return {
+    key, label,
+    act: (t, s, rng) => (t.alive().length <= fromLeft ? seatDecision(t, s, t.heroIndex(), fieldModel) : null) ?? base.act(t, s, rng),
+  };
 }
 
 export const POLICIES: Record<string, HeroPolicy> = {
@@ -71,4 +74,6 @@ export const POLICIES: Record<string, HeroPolicy> = {
   seatStyle0late20: seatStyleLate(0, 20), seatStyle0late30: seatStyleLate(0, 30),
   fieldSeatReg: fieldSeat('fieldSeatReg', 'Field-aware seat push/fold + regular', fieldReg),
   fieldSeatStyle0: fieldSeat('fieldSeatStyle0', 'Field-aware seat push/fold + tight-passive style', dataStyle(0)),
+  fieldSeatStyle0late50: fieldSeat('fieldSeatStyle0late50', 'Field-aware seat push/fold from 50 left + tight-passive style', dataStyle(0), 50),
+  fieldSeatStyle0late30: fieldSeat('fieldSeatStyle0late30', 'Field-aware seat push/fold from 30 left + tight-passive style', dataStyle(0), 30),
 };
