@@ -182,7 +182,8 @@ export const SPC_ROLLER_SHEET = sheet([
 
 export const SPC_BOUNTY_SHEET = sheet([
   [100, 100], [100, 200], [200, 300], [200, 400], [300, 600], [400, 800], 'B10', [600, 1200], [800, 1600], [1200, 2400], [1600, 3200], [2000, 4000], [3000, 6000], 'B10',
-  [4000, 8000], [6000, 12000], [8000, 16000], [12000, 24000], [16000, 32000], [20000, 40000],
+  [4000, 8000], [6000, 12000], [8000, 16000], [12000, 24000], [16000, 32000], [20000, 40000], 'B10',
+  [25000, 50000], [30000, 60000], [40000, 80000], [50000, 100000], [60000, 120000], [80000, 160000],
 ]);
 
 /**
@@ -205,13 +206,14 @@ const SPC_MINI: Omit<TournamentConfig, 'seed' | 'start' | 'heroStack'> = {
 };
 
 /**
- * SPC Mini-Main Event (SPC XXIII, Sunday 11am): S$350 + S$50, turbo, single day. SPC hasn't published its
- * structure or any results: 15,000 chips on the Mystery Bounty's fast sheet with 15-minute levels, a field
- * of 60 and 13% paid are assumptions.
+ * SPC Mini-Main Event (SPC XXIII, Sunday 11am): S$350 + S$50, turbo, single day. Official structure: 15,000 chips
+ * plus a 10,000 top-up (S$20, assumed to go to the prize pool and bought by everyone), the Mystery Bounty's sheet,
+ * 20-minute levels (about 9 live hands) and 20-second shot clocks. No results yet: a field of 60 and 13% paid
+ * are assumptions.
  */
 const SPC_MINIMAIN: Omit<TournamentConfig, 'seed' | 'start' | 'heroStack'> = {
-  name: 'SPC Mini-Main Event', entrants: 60, tableSize: 9, startingStack: 15000, handsPerLevel: 7, levelMinutes: 15,
-  buyIn: 400, fee: 50, poolCut: 0.04, paid: 8, currency: 'S$', field: 'mixed', event: 'minimain', schedule: SPC_BOUNTY_SHEET,
+  name: 'SPC Mini-Main Event', entrants: 60, tableSize: 9, startingStack: 25000, handsPerLevel: 9, levelMinutes: 20,
+  buyIn: 420, fee: 50, poolCut: 0.04, paid: 8, currency: 'S$', field: 'mixed', event: 'minimain', schedule: SPC_BOUNTY_SHEET,
 };
 
 /**
@@ -297,7 +299,7 @@ export const PRESETS: Preset[] = [
   },
   {
     key: 'spcminimain', label: 'SPC Mini-Main Event',
-    blurb: 'S$400 (S$350+50) single-day turbo on the Sunday of SPC XXIII. Structure not published yet: 15,000 chips, 15-minute levels, about 60 players, 8 paid.',
+    blurb: 'S$400 (S$350+50) single-day turbo on the Sunday of SPC XXIII: 15,000 chips plus the S$20 10,000-chip top-up, 20-minute levels and 20-second shot clocks. About 60 players and 8 paid are estimates.',
     config: { ...SPC_MINIMAIN, start: 'beginning', heroStack: 'average' },
   },
   {

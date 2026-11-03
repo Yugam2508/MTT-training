@@ -160,7 +160,7 @@ describe('tournament', () => {
   it('reads the SPC blind sheets: levels, breaks, day ends and levels past the end', () => {
     expect(SPC_MAIN_SHEET.filter(isLevel).length).toBe(31);
     expect(SPC_ROLLER_SHEET.filter(isLevel).length).toBe(27);
-    expect(SPC_BOUNTY_SHEET.filter(isLevel).length).toBe(18);
+    expect(SPC_BOUNTY_SHEET.filter(isLevel).length).toBe(24);
     const main = { schedule: SPC_MAIN_SHEET };
     expect(stopsAfter(main, 3)).toEqual([{ breakMin: 15, label: 'Break: 15 minutes' }]);
     expect(stopsAfter(main, 7)[0].label).toContain('colour-up');
