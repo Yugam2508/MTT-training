@@ -75,5 +75,6 @@ export const POLICIES: Record<string, HeroPolicy> = {
   fieldSeatReg: fieldSeat('fieldSeatReg', 'Field-aware seat push/fold + regular', fieldReg),
   fieldSeatStyle0: fieldSeat('fieldSeatStyle0', 'Field-aware seat push/fold + tight-passive style', dataStyle(0)),
   fieldSeatStyle0late50: fieldSeat('fieldSeatStyle0late50', 'Field-aware seat push/fold from 50 left + tight-passive style', dataStyle(0), 50),
+  fieldSeatStyle0late70: fieldSeat('fieldSeatStyle0late70', 'Field-aware seat push/fold from 70 left + tight-passive style', dataStyle(0), 70),
   fieldSeatStyle0late30: fieldSeat('fieldSeatStyle0late30', 'Field-aware seat push/fold from 30 left + tight-passive style', dataStyle(0), 30),
 };
