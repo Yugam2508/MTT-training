@@ -33,6 +33,28 @@ if (args.has('worker')) {
   await main();
 }
 
+function traceSummary(runs: SimRun[]) {
+  const n = runs.length;
+  const median = (xs: number[]) => { const a = xs.slice().sort((x, y) => x - y); return a.length ? a[Math.floor(a.length / 2)] : 0; };
+  const reach = Object.fromEntries((['50', '30', '20'] as const).map((k) => {
+    const xs = runs.map((r) => r.trace?.reach[k]).filter((x): x is number => x !== undefined);
+    return [k, { share: xs.length / n, median: median(xs) }];
+  })) as Record<'50' | '30' | '20', { share: number; median: number }>;
+  const at20 = runs.filter((r) => r.trace?.reach['20'] !== undefined);
+  const v = runs.reduce((a, r) => a.map((x, i) => x + (r.trace?.vpip[i] ?? 0)), [0, 0, 0]);
+  const chips: Record<string, number> = {};
+  for (const r of runs) for (const [k, x] of Object.entries(r.trace?.chips ?? {})) chips[k] = (chips[k] ?? 0) + x / n;
+  const busts: Record<string, number> = {};
+  for (const r of runs) {
+    const b = r.trace?.bust;
+    if (!b) continue;
+    const band = b.left > 50 ? '>50' : b.left > 20 ? '21-50' : '<=20';
+    const key = `${band}:${b.role}`;
+    busts[key] = (busts[key] ?? 0) + 1 / n;
+  }
+  return { reach, seatGiven20: at20.filter((r) => r.seat).length / Math.max(1, at20.length), vpip: (100 * v[1]) / Math.max(1, v[0]), pfr: (100 * v[2]) / Math.max(1, v[0]), chips, busts: Object.fromEntries(Object.entries(busts).sort()) };
+}
+
 function work(policy: string, a: number, b: number, onRun: () => void): Promise<SimRun[]> {
   return new Promise((resolve, reject) => {
     const child = spawn(process.execPath, ['--import', 'tsx', fileURLToPath(import.meta.url), '--worker', policy, '--seeds', `${a}-${b}`, '--start', start, ...(field ? ['--icm', String(field.icmAware)] : [])], { stdio: ['ignore', 'pipe', 'inherit'] });
@@ -77,6 +99,18 @@ async function main() {
     paired[p] = { diff: mean, ci95: (1.96 * sd) / Math.sqrt(d.length) };
     console.log(`${p} vs ${base}: ${mean >= 0 ? '+' : ''}${pct(mean)} seat rate (±${pct(paired[p].ci95)}, paired)`);
   }
+  const traces = Object.fromEntries(policies.map((p) => [p, traceSummary(results[p])]));
+  if (start === 'beginning') {
+    console.log('\nwhere it goes (full satellites): reach = share of runs alive at N left, with median stack (bb); seat|20 = seat rate once 20 are left');
+    console.log('policy            reach50        reach30        reach20      seat|20  vpip/pfr   chips before 20 left, bb per run: blinds steal preflop allinPre postflop');
+    for (const p of policies) {
+      const x = traces[p];
+      const r = (n: '50' | '30' | '20') => `${pct(x.reach[n].share).padStart(6)} @${x.reach[n].median.toFixed(0).padStart(3)}bb`;
+      console.log(`${p.padEnd(16)} ${r('50')}  ${r('30')}  ${r('20')}  ${pct(x.seatGiven20).padStart(6)}  ${x.vpip.toFixed(0)}/${x.pfr.toFixed(0)}`.padEnd(98) + (['blinds', 'steal', 'preflop', 'allinPre', 'postflop'] as const).map((k) => x.chips[k].toFixed(1).padStart(7)).join(''));
+    }
+    console.log('busts (share of runs): by players left when busting, and how the last chips went in');
+    for (const p of policies) console.log(`${p.padEnd(16)} ${Object.entries(traces[p].busts).map(([k, v]) => `${k} ${pct(v as number)}`).join('  ')}`);
+  }
   mkdirSync('research', { recursive: true });
-  writeFileSync(`research/satellite-${start}${tag}.json`, JSON.stringify({ start, runs, field, firstSeed: first, summaries, paired, ms: Date.now() - t0 }, null, 1));
+  writeFileSync(`research/satellite-${start}${tag}.json`, JSON.stringify({ start, runs, field, firstSeed: first, summaries, paired, traces, ms: Date.now() - t0 }, null, 1));
 }
