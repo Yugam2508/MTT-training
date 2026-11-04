@@ -20,7 +20,9 @@ const start = (args.get('start') ?? 'beginning') as 'beginning' | 'bubble';
 const runs = Number(args.get('runs') ?? 400);
 const first = Number(args.get('seed') ?? 1);
 // --icm <0..1>: opponents fitted to real players, with this much bubble awareness
-const field = args.has('icm') ? { icmAware: Number(args.get('icm')) } : undefined;
+// --weights a,b,c,d: share of each data style in the field (tight-passive, TAG, loose-passive, LAG); default as measured
+const weights = args.get('weights')?.split(',').map(Number);
+const field = args.has('icm') ? { icmAware: Number(args.get('icm')), ...(weights ? { weights } : {}) } : undefined;
 const tag = args.get('tag') ? `-${args.get('tag')}` : '';
 const policies = (args.get('policies') ?? Object.keys(POLICIES).join(',')).split(',');
 
@@ -59,7 +61,7 @@ function traceSummary(runs: SimRun[]) {
 
 function work(policy: string, a: number, b: number, onRun: () => void): Promise<SimRun[]> {
   return new Promise((resolve, reject) => {
-    const child = spawn(process.execPath, ['--import', 'tsx', fileURLToPath(import.meta.url), '--worker', policy, '--seeds', `${a}-${b}`, '--start', start, ...(field ? ['--icm', String(field.icmAware)] : [])], { stdio: ['ignore', 'pipe', 'inherit'] });
+    const child = spawn(process.execPath, ['--import', 'tsx', fileURLToPath(import.meta.url), '--worker', policy, '--seeds', `${a}-${b}`, '--start', start, ...(field ? ['--icm', String(field.icmAware)] : []), ...(weights ? ['--weights', weights.join(',')] : [])], { stdio: ['ignore', 'pipe', 'inherit'] });
     const out: SimRun[] = [];
     let buf = '';
     child.stdout.on('data', (d) => {
