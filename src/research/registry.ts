@@ -67,6 +67,12 @@ function fieldSeat(key: string, label: string, base: HeroPolicy, fromLeft = Infi
   };
 }
 
+/** The best satellite bot, entering late at `level` with a fresh starting stack. */
+function lateEntry(level: number): HeroPolicy {
+  const base = fieldSeat('fieldSeatStyle0late50', '', dataStyle(0), 50);
+  return { key: `enterL${level}`, label: `Best bot entering at level ${level}`, act: base.act, lateLevel: level };
+}
+
 export const POLICIES: Record<string, HeroPolicy> = {
   chipNash, fieldReg, seatEV, seatVsChip, exploitOracle, exploitRead,
   style0: dataStyle(0), style1: dataStyle(1), style2: dataStyle(2), style3: dataStyle(3),
@@ -76,5 +82,6 @@ export const POLICIES: Record<string, HeroPolicy> = {
   fieldSeatStyle0: fieldSeat('fieldSeatStyle0', 'Field-aware seat push/fold + tight-passive style', dataStyle(0)),
   fieldSeatStyle0late50: fieldSeat('fieldSeatStyle0late50', 'Field-aware seat push/fold from 50 left + tight-passive style', dataStyle(0), 50),
   fieldSeatStyle0late70: fieldSeat('fieldSeatStyle0late70', 'Field-aware seat push/fold from 70 left + tight-passive style', dataStyle(0), 70),
+  enterL1: lateEntry(1), enterL2: lateEntry(2), enterL3: lateEntry(3), enterL4: lateEntry(4), enterL5: lateEntry(5), enterL6: lateEntry(6),
   fieldSeatStyle0late30: fieldSeat('fieldSeatStyle0late30', 'Field-aware seat push/fold from 30 left + tight-passive style', dataStyle(0), 30),
 };

@@ -27,6 +27,8 @@ export interface HeroPolicy {
   key: string;
   label: string;
   act(t: Tournament, s: HandState, rng: Rng): PlayerAction;
+  /** Late entry: the hero sits out (checks or folds) until this level (1-based), then plays a fresh starting stack. */
+  lateLevel?: number;
 }
 
 const reg = PROFILES.pro;

@@ -1,5 +1,6 @@
 /** Headless satellites: play whole tournaments with a policy in the hero seat and count seats. */
 import { makeRng } from '../engine/rng';
+import { toCallOf } from '../engine/hand';
 import { Tournament } from '../tournament/tournament';
 import { PRESETS, type TournamentConfig } from '../tournament/structure';
 import type { HeroPolicy } from './policies';
@@ -15,6 +16,8 @@ export interface SimTrace {
   /** Hands played, voluntarily entered and raised preflop. */
   vpip: [number, number, number];
   chips: Record<ChipKind, number>;
+  /** Late entry: players left and the field's average stack (bb) when the hero sat down. */
+  entry?: { left: number; avgBB: number };
 }
 export interface SimRun { seed: number; seat: boolean; place: number; hands: number; trace?: SimTrace }
 
@@ -34,15 +37,23 @@ export function runSatellite(policy: HeroPolicy, cfg: TournamentConfig, field?: 
   const rng = makeRng(cfg.seed ^ 0x9e3779b9);
   const trace: SimTrace = { reach: {}, vpip: [0, 0, 0], chips: { blinds: 0, steal: 0, preflop: 0, allinPre: 0, postflop: 0 } };
   let guard = 0;
+  // late entry: sit out until the entry level, then take a fresh starting stack (as a new entry would)
+  let seated = !policy.lateLevel || policy.lateLevel <= 1;
   while (!t.finished && !t.heroOut && guard++ < 5000) {
     const left = t.alive().length;
     const bb = t.level().bb;
+    if (!seated && t.levelIndex >= policy.lateLevel! - 1) {
+      seated = true;
+      t.hero().stack = cfg.startingStack;
+      const avg = t.alive().reduce((a, p) => a + p.stack, 0) / left;
+      trace.entry = { left, avgBB: avg / bb };
+    }
     for (const n of [50, 30, 20] as const) if (left <= n && trace.reach[n] === undefined) trace.reach[n] = t.hero().stack / bb;
     const s = t.startRound();
     if (!s) break;
     while (!s.done) {
       t.runBots();
-      if (t.isHeroTurn()) t.heroAct(policy.act(t, s, rng));
+      if (t.isHeroTurn()) t.heroAct(seated ? policy.act(t, s, rng) : toCallOf(s) > 0 ? { type: 'fold' } : { type: 'check' });
     }
     const hi = t.heroIndex();
     const me = s.players[hi];

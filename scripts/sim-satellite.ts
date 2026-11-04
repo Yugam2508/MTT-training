@@ -52,7 +52,9 @@ function traceSummary(runs: SimRun[]) {
     const key = `${band}:${b.role}`;
     busts[key] = (busts[key] ?? 0) + 1 / n;
   }
-  return { reach, seatGiven20: at20.filter((r) => r.seat).length / Math.max(1, at20.length), vpip: (100 * v[1]) / Math.max(1, v[0]), pfr: (100 * v[2]) / Math.max(1, v[0]), chips, busts: Object.fromEntries(Object.entries(busts).sort()) };
+  const ent = runs.map((r) => r.trace?.entry).filter((x): x is { left: number; avgBB: number } => !!x);
+  const entry = ent.length ? { left: ent.reduce((a, e) => a + e.left, 0) / ent.length, avgBB: ent.reduce((a, e) => a + e.avgBB, 0) / ent.length } : undefined;
+  return { entry, reach, seatGiven20: at20.filter((r) => r.seat).length / Math.max(1, at20.length), vpip: (100 * v[1]) / Math.max(1, v[0]), pfr: (100 * v[2]) / Math.max(1, v[0]), chips, busts: Object.fromEntries(Object.entries(busts).sort()) };
 }
 
 function work(policy: string, a: number, b: number, onRun: () => void): Promise<SimRun[]> {
@@ -109,6 +111,10 @@ async function main() {
       console.log(`${p.padEnd(16)} ${r('50')}  ${r('30')}  ${r('20')}  ${pct(x.seatGiven20).padStart(6)}  ${x.vpip.toFixed(0)}/${x.pfr.toFixed(0)}`.padEnd(98) + (['blinds', 'steal', 'preflop', 'allinPre', 'postflop'] as const).map((k) => x.chips[k].toFixed(1).padStart(7)).join(''));
     }
     console.log('busts (share of runs): by players left when busting, and how the last chips went in');
+    for (const p of policies) {
+      const e = traces[p].entry;
+      if (e) console.log(`${p}: entered with ${e.left.toFixed(0)} left on average, field average ${e.avgBB.toFixed(1)}bb`);
+    }
     for (const p of policies) console.log(`${p.padEnd(16)} ${Object.entries(traces[p].busts).map(([k, v]) => `${k} ${pct(v as number)}`).join('  ')}`);
   }
   mkdirSync('research', { recursive: true });
