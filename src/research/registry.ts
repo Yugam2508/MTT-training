@@ -54,16 +54,19 @@ function seatStyleLate(k: number, left: number): HeroPolicy {
  * The field as the hero reads it without knowing who is who: every opponent calls and shoves with
  * the population's measured frequencies for their seat and stack, taking the strongest hands.
  */
-const fieldModel: FieldModel = {
-  callRange: (s, h, effBB) => topPercentRange(100 * fieldShare('callAllIn', positionOf(s, h), effBB, s.players.length), classesByRawEquity()),
-  shoveRange: (s, h, effBB) => topPercentRange(100 * Math.max(0.02, fieldShare('openShove', positionOf(s, h), effBB, s.players.length)), classesByRawEquity()),
-};
+function fieldModelOf(weights?: number[]): FieldModel {
+  return {
+    callRange: (s, h, effBB) => topPercentRange(100 * fieldShare('callAllIn', positionOf(s, h), effBB, s.players.length, weights), classesByRawEquity()),
+    shoveRange: (s, h, effBB) => topPercentRange(100 * Math.max(0.02, fieldShare('openShove', positionOf(s, h), effBB, s.players.length, weights)), classesByRawEquity()),
+  };
+}
+const fieldModel = fieldModelOf();
 
 /** Seat push/fold that best-responds to the field's measured ranges; `base` plays everything else. */
-function fieldSeat(key: string, label: string, base: HeroPolicy, fromLeft = Infinity): HeroPolicy {
+function fieldSeat(key: string, label: string, base: HeroPolicy, fromLeft = Infinity, model = fieldModel): HeroPolicy {
   return {
     key, label,
-    act: (t, s, rng) => (t.alive().length <= fromLeft ? seatDecision(t, s, t.heroIndex(), fieldModel) : null) ?? base.act(t, s, rng),
+    act: (t, s, rng) => (t.alive().length <= fromLeft ? seatDecision(t, s, t.heroIndex(), model) : null) ?? base.act(t, s, rng),
   };
 }
 
@@ -82,6 +85,9 @@ export const POLICIES: Record<string, HeroPolicy> = {
   fieldSeatStyle0: fieldSeat('fieldSeatStyle0', 'Field-aware seat push/fold + tight-passive style', dataStyle(0)),
   fieldSeatStyle0late50: fieldSeat('fieldSeatStyle0late50', 'Field-aware seat push/fold from 50 left + tight-passive style', dataStyle(0), 50),
   fieldSeatStyle0late70: fieldSeat('fieldSeatStyle0late70', 'Field-aware seat push/fold from 70 left + tight-passive style', dataStyle(0), 70),
+  // the same bot told the field's true mix: loose (mostly loose-passive and LAG) or tight
+  fieldSeatStyle0late50knowsLoose: fieldSeat('fieldSeatStyle0late50knowsLoose', 'Field-aware from 50 left, modelling a loose field', dataStyle(0), 50, fieldModelOf([15, 15, 45, 25])),
+  fieldSeatStyle0late50knowsTight: fieldSeat('fieldSeatStyle0late50knowsTight', 'Field-aware from 50 left, modelling a tight field', dataStyle(0), 50, fieldModelOf([55, 25, 12, 8])),
   enterL1: lateEntry(1), enterL2: lateEntry(2), enterL3: lateEntry(3), enterL4: lateEntry(4), enterL5: lateEntry(5), enterL6: lateEntry(6),
   fieldSeatStyle0late30: fieldSeat('fieldSeatStyle0late30', 'Field-aware seat push/fold from 30 left + tight-passive style', dataStyle(0), 30),
 };
