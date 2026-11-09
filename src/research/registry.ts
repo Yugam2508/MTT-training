@@ -6,7 +6,8 @@ import type { FieldModel } from './policies';
 import { topPercentRange } from '../engine/ranges';
 import { classesByRawEquity } from '../engine/preflopMatrix';
 import { positionOf } from '../theory/spot';
-import { HERO_ID } from '../tournament/tournament';
+import { HERO_ID, type Tournament } from '../tournament/tournament';
+import type { HandState } from '../engine/hand';
 
 /**
  * A real-player style in the hero seat (a control): it plays exactly like the field's bots of that
@@ -70,6 +71,28 @@ function fieldSeat(key: string, label: string, base: HeroPolicy, fromLeft = Infi
   };
 }
 
+/**
+ * Per-opponent reads, as an upper bound: the field-aware bot told each opponent's true style, so it
+ * predicts every caller and shover from that style's own measured frequencies.
+ */
+function playerSeat(key: string, label: string, base: HeroPolicy, fromLeft = Infinity): HeroPolicy {
+  const oneHot = (t: Tournament, s: HandState, h: number) => {
+    const k = t instanceof DataTournament ? t.styleOf.get(s.players[h].id) : undefined;
+    return k === undefined ? undefined : STYLE_LABEL.map((_, j) => (j === k ? 1 : 0));
+  };
+  return {
+    key, label,
+    act: (t, s, rng) => {
+      if (t.alive().length > fromLeft) return base.act(t, s, rng);
+      const model: FieldModel = {
+        callRange: (st, h, effBB) => topPercentRange(100 * fieldShare('callAllIn', positionOf(st, h), effBB, st.players.length, oneHot(t, st, h)), classesByRawEquity()),
+        shoveRange: (st, h, effBB) => topPercentRange(100 * Math.max(0.02, fieldShare('openShove', positionOf(st, h), effBB, st.players.length, oneHot(t, st, h))), classesByRawEquity()),
+      };
+      return seatDecision(t, s, t.heroIndex(), model) ?? base.act(t, s, rng);
+    },
+  };
+}
+
 /** The best satellite bot, entering late at `level` with a fresh starting stack. */
 function lateEntry(level: number): HeroPolicy {
   const base = fieldSeat('fieldSeatStyle0late50', '', dataStyle(0), 50);
@@ -88,6 +111,7 @@ export const POLICIES: Record<string, HeroPolicy> = {
   // the same bot told the field's true mix: loose (mostly loose-passive and LAG) or tight
   fieldSeatStyle0late50knowsLoose: fieldSeat('fieldSeatStyle0late50knowsLoose', 'Field-aware from 50 left, modelling a loose field', dataStyle(0), 50, fieldModelOf([15, 15, 45, 25])),
   fieldSeatStyle0late50knowsTight: fieldSeat('fieldSeatStyle0late50knowsTight', 'Field-aware from 50 left, modelling a tight field', dataStyle(0), 50, fieldModelOf([55, 25, 12, 8])),
+  playerSeatStyle0late50: playerSeat('playerSeatStyle0late50', 'Per-opponent reads from 50 left + tight-passive style', dataStyle(0), 50),
   enterL1: lateEntry(1), enterL2: lateEntry(2), enterL3: lateEntry(3), enterL4: lateEntry(4), enterL5: lateEntry(5), enterL6: lateEntry(6),
   fieldSeatStyle0late30: fieldSeat('fieldSeatStyle0late30', 'Field-aware seat push/fold from 30 left + tight-passive style', dataStyle(0), 30),
 };
