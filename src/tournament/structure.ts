@@ -150,10 +150,11 @@ export interface Preset {
 }
 
 /**
- * The SPC XXIII Main Event 1B satellite (Saturday 11am): S$60, no fee, hyper-turbo, 10 seats guaranteed,
- * each a S$530+70 Flight 1B entry with the 10,000-chip add-on. Official structure (Natural8 "ME Satellite"):
- * 2,000 chips, 25/50 start, 10-minute levels, no antes, late registration and re-entry to the end of
- * Level 6. 100 entries (exactly the guarantee) and ~5 live hands per level are assumptions.
+ * The SPC XXIII Main Event 1B satellite (Saturday 11am): S$60, no fee, hyper-turbo, 10 seats guaranteed.
+ * Per the player's guide, each seat is a S$530+70 Flight 1B entry whose winner starts with 35,000 chips
+ * (15,000 + 20,000 dealer's chips) instead of a standard entry's 25,000. Official structure (Natural8
+ * "ME Satellite"): 2,000 chips, 25/50 start, 10-minute levels, no antes, late registration and re-entry
+ * to the end of Level 6. 100 entries (exactly the guarantee) and ~5 live hands per level are assumptions.
  */
 export const SPC_SATELLITE_SHEET: ScheduleItem[] = ([
   [25, 50], [50, 100], [100, 200], [200, 400], [300, 600], [500, 1000],
@@ -198,15 +199,16 @@ const SPC_MAIN: Omit<TournamentConfig, 'seed' | 'start' | 'heroStack'> = {
 
 /**
  * SPC Mini-Roller: S$883 + S$117, S$30,000 guaranteed, 30,000 chips, 40-minute levels (about 17 live hands),
- * the shared Mini/High-Roller sheet. Recent fields: 51, 60 and 40 entries with 6, 7 and 5 paid.
+ * the shared Mini/High-Roller sheet. 10% of the pool goes to staffing (the player's guide; other events take 4%).
+ * Recent fields: 51, 60 and 40 entries with 6, 7 and 5 paid.
  */
 const SPC_MINI: Omit<TournamentConfig, 'seed' | 'start' | 'heroStack'> = {
   name: 'SPC Mini-Roller', entrants: 50, tableSize: 9, startingStack: 30000, handsPerLevel: 17, levelMinutes: 40,
-  buyIn: 1000, fee: 117, poolCut: 0.04, guarantee: 30000, paid: 6, currency: 'S$', field: 'tough', event: 'mini', schedule: SPC_ROLLER_SHEET,
+  buyIn: 1000, fee: 117, poolCut: 0.1, guarantee: 30000, paid: 6, currency: 'S$', field: 'tough', event: 'mini', schedule: SPC_ROLLER_SHEET,
 };
 
 /**
- * SPC Mini-Main Event (SPC XXIII, Sunday 11am): S$350 + S$50, turbo, single day. Official structure: 15,000 chips
+ * SPC Mini-Main Event (SPC XXIII, Sunday 1pm): S$350 + S$50, turbo, single day. Official structure: 15,000 chips
  * plus a 10,000 top-up (S$20, assumed to go to the prize pool and bought by everyone), the Mystery Bounty's sheet,
  * 20-minute levels (about 9 live hands) and 20-second shot clocks. No results yet: a field of 60 and 13% paid
  * are assumptions.
@@ -269,7 +271,7 @@ export const PRESETS: Preset[] = [
   },
   {
     key: 'spcsat', label: 'SPC Satellite',
-    blurb: 'The S$60 hyper-turbo satellite to Main Event Flight 1B (Saturday 11am): 10 seats guaranteed, each with the 10,000-chip add-on. Fast levels, and every seat is worth the same, so surviving beats chips.',
+    blurb: 'The S$60 hyper-turbo satellite to Main Event Flight 1B (Saturday 11am): 10 seats guaranteed, each worth a 35,000-chip start (a standard entry gets 25,000). Fast levels, and every seat is worth the same, so surviving beats chips.',
     config: { ...SPC_SATELLITE, start: 'beginning', heroStack: 'average' },
   },
   {
@@ -299,7 +301,7 @@ export const PRESETS: Preset[] = [
   },
   {
     key: 'spcminimain', label: 'SPC Mini-Main Event',
-    blurb: 'S$400 (S$350+50) single-day turbo on the Sunday of SPC XXIII: 15,000 chips plus the S$20 10,000-chip top-up, 20-minute levels and 20-second shot clocks. About 60 players and 8 paid are estimates.',
+    blurb: 'S$400 (S$350+50) single-day turbo on SPC XXIII Sunday at 1pm: 15,000 chips plus the S$20 10,000-chip top-up, 20-minute levels and 20-second shot clocks. About 60 players and 8 paid are estimates.',
     config: { ...SPC_MINIMAIN, start: 'beginning', heroStack: 'average' },
   },
   {
