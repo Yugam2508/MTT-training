@@ -175,6 +175,9 @@ export const SPC_MAIN_SHEET = sheet([
   [60000, 120000], [80000, 160000], [120000, 240000], [160000, 320000], 'B10', [200000, 400000], [250000, 500000], [300000, 600000],
 ]);
 
+/** Flight 1A plays on to the money in one go: the same levels and breaks, with no "End of Day 1" after Level 12. */
+export const SPC_MAIN_1A_SHEET: ScheduleItem[] = SPC_MAIN_SHEET.filter((x) => isLevel(x) || x.breakMin > 0);
+
 export const SPC_ROLLER_SHEET = sheet([
   [100, 100], [100, 200], [100, 200], 'B10', [200, 400], [300, 500], [300, 600], 'B10', [400, 800], [500, 1000], [600, 1200], 'D1',
   [800, 1600], [1000, 2000], [1200, 2400], 'B10', [1500, 3000], [2000, 4000], [2500, 5000], 'B10', [3000, 6000], [4000, 8000], [5000, 10000], 'B10',
@@ -190,11 +193,13 @@ export const SPC_BOUNTY_SHEET = sheet([
 /**
  * SPC Main Event (Natural8): S$530 + S$70, 15,000 chips plus a 10,000 add-on (S$40, assumed to go to
  * the prize pool and bought by everyone), the published blind sheet, 4% of the pool to staffing, 13% paid.
- * Flight 1B's 30-minute levels (about 13 live hands). Recent fields were 203-398 entries; 250 is typical.
+ * Played as Flight 1A (Friday 2pm): 40-minute levels (about 17 live hands) and straight through to the money,
+ * with no end of Day 1. Flights 1B and 1C use 30 and 25-minute levels and stop after 12 levels. Recent fields
+ * were 203-398 entries; 250 is typical.
  */
 const SPC_MAIN: Omit<TournamentConfig, 'seed' | 'start' | 'heroStack'> = {
-  name: 'SPC Main Event', entrants: 250, tableSize: 9, startingStack: 25000, handsPerLevel: 13, levelMinutes: 30,
-  buyIn: 640, fee: 70, poolCut: 0.04, guarantee: 100000, paid: 33, currency: 'S$', field: 'mixed', event: 'spcmain', schedule: SPC_MAIN_SHEET,
+  name: 'SPC Main Event', entrants: 250, tableSize: 9, startingStack: 25000, handsPerLevel: 17, levelMinutes: 40,
+  buyIn: 640, fee: 70, poolCut: 0.04, guarantee: 100000, paid: 33, currency: 'S$', field: 'mixed', event: 'spcmain', schedule: SPC_MAIN_1A_SHEET,
 };
 
 /**
@@ -261,13 +266,13 @@ export const PRESETS: Preset[] = [
   },
   {
     key: 'spcmain', label: 'SPC Main Event',
-    blurb: 'The S$600 SPC Main Event (S$100,000 guaranteed) on the real blind sheet: 250 entries, 25,000 chips with the add-on (250bb), 30-minute levels, 13% paid.',
+    blurb: 'The S$600 SPC Main Event (S$100,000 guaranteed) as Flight 1A, Friday 2pm: 250 entries, 25,000 chips with the add-on (250bb), 40-minute levels on the real blind sheet, played straight to the money (13% paid).',
     config: { ...SPC_MAIN, start: 'beginning', heroStack: 'average' },
   },
   {
     key: 'spcday2', label: 'SPC Main Event Day 2',
     blurb: 'Skip the flights: start Day 2 of the SPC Main Event with about 110 players left and ~35bb stacks, then play through the bubble to the final table.',
-    config: { ...SPC_MAIN, name: 'SPC Main Event Day 2', start: 'middle', heroStack: 'random' },
+    config: { ...SPC_MAIN, name: 'SPC Main Event Day 2', handsPerLevel: 13, levelMinutes: 30, schedule: SPC_MAIN_SHEET, start: 'middle', heroStack: 'random' },
   },
   {
     key: 'spcsat', label: 'SPC Satellite',

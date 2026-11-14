@@ -1,5 +1,5 @@
 import { Tournament, HERO_ID, mysteryEnvelopes } from './tournament';
-import { PRESETS, eventOfName, levelAt, stopsAfter, SPC_MAIN_SHEET, SPC_ROLLER_SHEET, SPC_BOUNTY_SHEET, isLevel, type TournamentConfig } from './structure';
+import { PRESETS, eventOfName, levelAt, stopsAfter, SPC_MAIN_SHEET, SPC_MAIN_1A_SHEET, SPC_ROLLER_SHEET, SPC_BOUNTY_SHEET, isLevel, type TournamentConfig } from './structure';
 import { satellitePayouts } from '../theory/payouts';
 import { chooseBotAction } from '../bots/bot';
 import { PROFILES } from '../bots/profiles';
@@ -166,6 +166,10 @@ describe('tournament', () => {
     expect(stopsAfter(main, 7)[0].label).toContain('colour-up');
     expect(stopsAfter(main, 11)).toEqual([{ breakMin: 0, label: 'End of Day 1' }]);
     expect(stopsAfter(main, 4)).toEqual([]);
+    // Flight 1A plays on to the money: same levels and breaks, no end of Day 1
+    expect(SPC_MAIN_1A_SHEET.filter(isLevel).length).toBe(31);
+    expect(stopsAfter({ schedule: SPC_MAIN_1A_SHEET }, 11)).toEqual([]);
+    expect(stopsAfter({ schedule: SPC_MAIN_1A_SHEET }, 7)[0].label).toContain('colour-up');
     expect(levelAt(main, 30)).toEqual({ sb: 300000, bb: 600000, ante: 600000 });
     expect(levelAt(main, 31).bb).toBeGreaterThan(600000);
   });

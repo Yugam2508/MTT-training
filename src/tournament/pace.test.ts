@@ -10,7 +10,7 @@ const spcMain = PRESETS.find((p) => p.key === 'spcmain')!.config;
 describe('live pace', () => {
   it('raises the blinds by the clock and takes a break every few levels', () => {
     const t = new Tournament({ ...spcMain, pace: 'live', seed: 3 });
-    expect(levelMinutes(t.cfg)).toBe(30);
+    expect(levelMinutes(t.cfg)).toBe(40);
     t.startRound();
     const playOut = () => { const s = t.current!; while (!s.done) { if (t.isHeroTurn()) t.heroAct(chooseBotAction(s, s.toAct, PROFILES.nit, t.botCtx(HERO_ID), t.rng)); else t.stepBot(); } t.finishRound(); };
     playOut();
